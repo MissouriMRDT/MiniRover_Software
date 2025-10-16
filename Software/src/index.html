@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mini Rover</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="main.js"></script>
+</head>
+
+<body>
+    <div id="telemetry">
+        <p id="b">Battery</p>
+        <div id="bv"></div>
+        <div id="ba"></div>
+        <p id="c">Cell</p>
+        <div id="c1"></div>
+        <div id="c2"></div>
+        <div id="c3"></div>
+        <div id="c4"></div>
+        <p id="d">Drive</p>
+        <div id="dl"></div>
+        <div id="dr"></div>
+        <p id="ap">Arm Angle</p>
+        <div id="ax"></div>
+        <div id="aj1"></div>
+        <div id="aj2"></div>
+        <div id="aj3"></div>
+        <p id="ae">Gripper</p>
+        <div id="aex"></div>
+        <div id="aey"></div>
+        <div id="aez"></div>
+    </div>
+    <div id="drive"></div>
+    <div id="arm-left"></div>
+    <div id="arm-right"></div>
+    <div id="controls">
+        <svg style="grid-area: l" id="lock" version="1.1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 30 50 L 30 35 A 20 20 180 0 1 70 35 L 70 50 L 60 50 L 60 35 A 10 10 180 0 0 40 35 L 40 50 Z"
+                fill="#fff" />
+            <path d="M 30 50 L 30 20 A 20 20 180 0 1 70 20 L 70 35 L 60 35 L 60 20 A 10 10 180 0 0 40 20 L 40 50 Z"
+                fill="#fff" />
+            <rect x="25" y="50" width="50" height="50" fill="#fff"></rect>
+        </svg>
+        <svg style="grid-area: on" id="on" version="1.1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="50" fill="#080"></circle>
+        </svg>
+        <svg style="grid-area: off" id="off" version="1.1" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 29.29 0 L 70.71 0 L 100 29.29 L 100 70.71 L 70.71 100 L 29.29 100 L 0 70.71 L 0 29.29 Z"
+                fill="#800" />
+        </svg>
+        <select style="grid-area: d" id="display"></select>
+        <div style="grid-area: o; justify-self: center" class="override"></div>
+        <p style="grid-area: o; height: unset; text-align: center; margin: 0; font-size: 3vw" class="override">
+            Override</p>
+    </div>
+</body>
+
+</html>
