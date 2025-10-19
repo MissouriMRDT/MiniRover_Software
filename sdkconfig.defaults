@@ -1,0 +1,4 @@
+
+# https://docs.espressif.com/projects/esp-idf/en/stable/esp32s2/api-reference/protocols/esp_http_server.html#websocket-server
+CONFIG_HTTPD_WS_SUPPORT=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y

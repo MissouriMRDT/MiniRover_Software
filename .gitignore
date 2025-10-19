@@ -6,4 +6,5 @@
 docs/_build
 dist
 build
-sdkconfig.nodemcu-32s
+sdkconfig.*
+!sdkconfig.defaults
