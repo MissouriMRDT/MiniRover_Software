@@ -62,8 +62,7 @@ void wifi_init_softap(void) {
               .channel = WIFI_CHANNEL,
               .password = WIFI_PASS,
               .max_connection = MAX_STATION_CONNECTIONS,
-              .authmode = WIFI_AUTH_WPA3_PSK,
-              .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+              .authmode = WIFI_AUTH_WPA2_PSK,
               .pmf_cfg =
                   {
                       .required = true,
@@ -81,57 +80,57 @@ void wifi_init_softap(void) {
            WIFI_SSID, WIFI_PASS, WIFI_CHANNEL);
 }
 
-extern const uint8_t FILE_FONT_START[] asm("_binary_B612Mono_wolff2_start");
-extern const uint8_t FILE_FONT_END[] asm("_binary_B612Mono_wolff2_end");
-extern const uint8_t FILE_HTML_START[] asm("_binary_index_html_start");
-extern const uint8_t FILE_HTML_END[] asm("_binary_index_html_end");
-extern const uint8_t FILE_JS_START[] asm("_binary_main_js_start");
-extern const uint8_t FILE_JS_END[] asm("_binary_main_js_end");
-extern const uint8_t FILE_CSS_START[] asm("_binary_style_css_start");
-extern const uint8_t FILE_CSS_END[] asm("_binary_style_css_end");
+extern const char FILE_FONT_START[] asm("_binary_B612Mono_woff2_start");
+extern const char FILE_FONT_END[] asm("_binary_B612Mono_woff2_end");
+extern const char FILE_HTML_START[] asm("_binary_index_html_start");
+extern const char FILE_HTML_END[] asm("_binary_index_html_end");
+extern const char FILE_JS_START[] asm("_binary_main_js_start");
+extern const char FILE_JS_END[] asm("_binary_main_js_end");
+extern const char FILE_CSS_START[] asm("_binary_style_css_start");
+extern const char FILE_CSS_END[] asm("_binary_style_css_end");
 
 #define SEND_CHUNK_SIZE 8192
 static esp_err_t root_handler(httpd_req_t *req) {
-  size_t chunksize;
-  uint8_t *fileStart = NULL;
-  uint8_t *fileEnd = NULL;
+  ESP_LOGI(TAG, "Request %s", req->uri);
+
+  const char *fileStart = NULL;
+  const char *fileEnd = NULL;
   if (strcmp(req->uri, "/") == 0 || strcmp(req->uri, "/index.html") == 0) {
     fileStart = FILE_HTML_START;
     fileEnd = FILE_HTML_END;
+    httpd_resp_set_type(req, "text/html");
   } else if (strcmp(req->uri, "/B612Mono.woff2") == 0) {
     fileStart = FILE_FONT_START;
     fileEnd = FILE_FONT_END;
+    httpd_resp_set_type(req, "font/woff2");
   } else if (strcmp(req->uri, "/main.js") == 0) {
     fileStart = FILE_JS_START;
     fileEnd = FILE_JS_END;
+    httpd_resp_set_type(req, "text/javascript");
   } else if (strcmp(req->uri, "/style.css") == 0) {
     fileStart = FILE_CSS_START;
     fileEnd = FILE_CSS_END;
+    httpd_resp_set_type(req, "text/css");
   } else {
     ESP_LOGE(TAG, "Failed to find %s", req->uri);
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File does not exist");
     return ESP_FAIL;
   }
 
-  while (fileStart < fileEnd) {
-    if (httpd_resp_send_chunk(req, fileStart,
-                              fileEnd - fileStart < SEND_CHUNK_SIZE
-                                  ? fileEnd - fileStart
-                                  : SEND_CHUNK_SIZE) != ESP_OK) {
-      ESP_LOGE(TAG, "File sending failed!");
-      httpd_resp_sendstr_chunk(req, NULL);
-      httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
-                          "Failed to send file");
-      return ESP_FAIL;
-    }
-    fileStart += SEND_CHUNK_SIZE;
+  if (httpd_resp_send(req, fileStart, fileEnd - fileStart) != ESP_OK) {
+    ESP_LOGE(TAG, "File sending failed!");
+    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                        "Failed to send file");
+    return ESP_FAIL;
   }
   ESP_LOGI(TAG, "File sending complete");
   return ESP_OK;
 }
 
-static const httpd_uri_t root_config = {
-    .uri = "/*", .method = HTTP_GET, .handler = root_handler, .user_ctx = NULL};
+static const httpd_uri_t root_config = {.uri = "/?*",
+                                        .method = HTTP_GET,
+                                        .handler = root_handler,
+                                        .user_ctx = NULL};
 
 // id: union
 // 0: off
@@ -184,84 +183,98 @@ telemetry {
 } telemetry;
 
 static esp_err_t websocket_handler(httpd_req_t *req) {
+  httpd_ws_frame_t pkt = {0};
+  command rxData = {0};
+  telemetry txData;
+  esp_err_t ret;
+
   if (req->method == HTTP_GET) {
     ESP_LOGI(TAG, "Handshake done, the new connection was opened");
     return ESP_OK;
   }
 
-  while (true) {
-    httpd_ws_frame_t pkt;
-    command rxData;
-    telemetry txData;
-
-    pkt.type = HTTPD_WS_TYPE_BINARY;
-    pkt.payload = (uint8_t *)&rxData;
-    esp_err_t ret = httpd_ws_recv_frame(req, &pkt, sizeof(rxData));
-    if (ret != ESP_OK) {
-      ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-      return ret;
-    }
-
-    // rx_data[0]: name [rx_data[1...], ...]
-    // 0: off
-    // 1: on
-    // 2: drive [bool override, i16 left, i16 right]
-    // 3: arm angles [u16 x, u16 j1, u16 j2, u16 j3]
-    // 4: arm IK [u16 x, u16 y, u16 z]
-    ESP_LOGI(TAG, "Command id: %d", rxData.id);
-    switch (rxData.id) {
-    case 0:
-      ESP_LOGI(TAG, "Command OFF");
-      break;
-    case 1:
-      ESP_LOGI(TAG, "Command ON");
-      break;
-    case 2:
-      ESP_LOGI(TAG, "Command DRIVE override: %s, left: %d, right: %d",
-               rxData.drive.override ? "true" : "false", rxData.drive.left,
-               rxData.drive.right);
-      break;
-    case 3:
-      ESP_LOGI(TAG,
-               "Command ANGLES override: %s, x: %d, j1: %d, j2: %d, j3: %d",
-               rxData.armAngles.override ? "true" : "false", rxData.armAngles.x,
-               rxData.armAngles.j1, rxData.armAngles.j2, rxData.armAngles.j3);
-      break;
-    case 4:
-      ESP_LOGI(TAG, "Command IK override: %s, x: %d, y: %d, z: %d",
-               rxData.armIK.override ? "true" : "false", rxData.armIK.x,
-               rxData.armIK.y, rxData.armIK.z);
-      break;
-    }
-
-    txData.batteryVoltage = 12.3;
-    txData.batteryCurrent = 10.1;
-    txData.cell1 = 1.1;
-    txData.cell2 = 1.2;
-    txData.cell3 = 2.1;
-    txData.cell4 = 2.2;
-    txData.l = 1.0;
-    txData.r = 0.53;
-    txData.ax = 1.0;
-    txData.j1 = 0.12;
-    txData.j2 = 0.34;
-    txData.j3 = 0.56;
-    txData.x = 128;
-    txData.y = 452;
-    txData.z = 321;
-
-    pkt.fragmented = false;
-    pkt.type = HTTPD_WS_TYPE_BINARY;
-    pkt.payload = (uint8_t *)&txData;
-    pkt.len = sizeof(txData);
-
-    ret = httpd_ws_send_frame(req, &pkt);
-    pkt.payload = NULL;
-    if (ret != ESP_OK) {
-      ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
-      return ret;
-    }
+  pkt.payload = (uint8_t *)&rxData;
+  ret = httpd_ws_recv_frame(req, &pkt, 0);
+  ESP_LOGI(TAG, "rx length %d", pkt.len);
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
+    return ret;
   }
+  ret = httpd_ws_recv_frame(req, &pkt, sizeof(command));
+  for (size_t i = 0; i < sizeof(command); i++) {
+    printf("%02x ", pkt.payload[i]);
+  }
+  printf("\n");
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
+    return ret;
+  }
+
+  // rx_data[0]: name [rx_data[1...], ...]
+  // 0: off
+  // 1: on
+  // 2: drive [bool override, i16 left, i16 right]
+  // 3: arm angles [u16 x, u16 j1, u16 j2, u16 j3]
+  // 4: arm IK [u16 x, u16 y, u16 z]
+  ESP_LOGI(TAG, "Command id: %d", rxData.id);
+  switch (rxData.id) {
+  case 0:
+    ESP_LOGI(TAG, "Command OFF");
+    break;
+  case 1:
+    ESP_LOGI(TAG, "Command ON");
+    break;
+  case 2:
+    ESP_LOGI(TAG, "Command DRIVE override: %s, left: %d, right: %d",
+             rxData.drive.override ? "true" : "false", rxData.drive.left,
+             rxData.drive.right);
+    break;
+  case 3:
+    ESP_LOGI(TAG, "Command ANGLES override: %s, x: %d, j1: %d, j2: %d, j3: %d",
+             rxData.armAngles.override ? "true" : "false", rxData.armAngles.x,
+             rxData.armAngles.j1, rxData.armAngles.j2, rxData.armAngles.j3);
+    break;
+  case 4:
+    ESP_LOGI(TAG, "Command IK override: %s, x: %d, y: %d, z: %d",
+             rxData.armIK.override ? "true" : "false", rxData.armIK.x,
+             rxData.armIK.y, rxData.armIK.z);
+    break;
+  }
+
+  txData.batteryVoltage = 12.3;
+  txData.batteryCurrent = 10.1;
+  txData.cell1 = 1.1;
+  txData.cell2 = 1.2;
+  txData.cell3 = 2.1;
+  txData.cell4 = 2.2;
+  txData.l = -0.5 * 0x7000;
+  txData.r = 0.63 * 0x7000;
+  txData.ax = 0.12 * 0x10000;
+  txData.j1 = 0.34 * 0x10000;
+  txData.j2 = 0.56 * 0x10000;
+  txData.j3 = 0.78 * 0x10000;
+  txData.x = 128;
+  txData.y = 452;
+  txData.z = 321;
+
+  pkt.fragmented = false;
+  pkt.type = HTTPD_WS_TYPE_BINARY;
+  pkt.payload = (uint8_t *)&txData;
+  pkt.len = sizeof(telemetry);
+  ESP_LOGI(TAG, "tx length %d", pkt.len);
+  for (size_t i = 0; i < pkt.len; i++) {
+    printf("%02x ", pkt.payload[i]);
+  }
+  printf("\n");
+
+  ret = httpd_ws_send_frame(req, &pkt);
+  pkt.payload = NULL;
+  if (ret != ESP_OK) {
+    ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
+    return ret;
+  }
+
+  return ESP_OK;
 }
 
 static const httpd_uri_t websocket_config = {.uri = "/ws",
@@ -273,23 +286,20 @@ static const httpd_uri_t websocket_config = {.uri = "/ws",
 static httpd_handle_t start_webserver(void) {
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.uri_match_fn = httpd_uri_match_wildcard;
 
   // Start the httpd server
   ESP_LOGI(TAG, "Starting webserver on port %d.", config.server_port);
   if (httpd_start(&server, &config) == ESP_OK) {
     // Registering the ws handler
     ESP_LOGI(TAG, "Registering URI handlers.");
-    httpd_register_uri_handler(server, &root_config);
     httpd_register_uri_handler(server, &websocket_config);
+    httpd_register_uri_handler(server, &root_config);
     return server;
   }
 
   ESP_LOGI(TAG, "Error starting server!");
   return NULL;
-}
-
-static esp_err_t stop_webserver(httpd_handle_t server) {
-  return httpd_stop(server);
 }
 
 void app_main(void) {
@@ -304,5 +314,5 @@ void app_main(void) {
 
   ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
   wifi_init_softap();
-  httpd_handle_t server = start_webserver();
+  start_webserver();
 }

@@ -18,7 +18,23 @@ body {
     border: 5px solid #fff;
 }
 
-.joystick-inner {}
+.joystick-x {
+    position: absolute;
+    left: 50%;
+    width: 0.5vh;
+    bottom: 0;
+    top: 0;
+    background-color: #fff;
+}
+
+.joystick-y {
+    position: absolute;
+    top: 50%;
+    height: 0.5vh;
+    left: 0;
+    right: 0;
+    background-color: #fff;
+}
 
 div {
     margin: 0;
@@ -110,6 +126,13 @@ div {
 }
 
 .override {
-    background-color: #880 !important;
+    user-select: none;
+}
 
+#full-screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 10vh;
+    height: 10vh;
 }

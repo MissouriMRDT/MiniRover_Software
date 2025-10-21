@@ -2,7 +2,7 @@ const JOYSTICK_CLIP_RANGE = 0.2;
 const GAMMA = 1.5;
 const JOINT_SPEED = 0.02; // range/s
 const IK_SPEED = 4; // mm/s
-const COMMAND_INTERVAL = 1; // s
+const COMMAND_INTERVAL = 5; // s
 
 function lerp(x, x0, x1, y0, y1) {
     return (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0);
@@ -34,19 +34,24 @@ class Joystick {
     x;
     y;
     active;
+    innerX;
+    innerY;
     constructor(id) {
         this.dom = document.getElementById(id);
         this.x = 0;
         this.y = 0;
         this.dom.classList.add("joystick");
 
-        this.dom.addEventListener("touchmove", this.onTouchMove, false);
-        this.dom.addEventListener("touchend", this.onTouchEnd, false);
-        this.dom.addEventListener("mousemove", this.onMouseMove, false);
-        this.dom.addEventListener("mouseup", this.onMouseUp, false);
-        /*let inner = document.createElement("div");
-        inner.className = "joystick-inner";
-        this.dom.appendChild(inner);*/
+        this.dom.addEventListener("touchmove", this.onTouchMove.bind(this), false);
+        this.dom.addEventListener("touchend", this.onTouchEnd.bind(this), false);
+        this.dom.addEventListener("mousemove", this.onMouseMove.bind(this), false);
+        this.dom.addEventListener("mouseleave", this.onMouseLeave.bind(this), false);
+        this.innerX = document.createElement("div");
+        this.innerX.className = "joystick-x";
+        this.dom.appendChild(this.innerX);
+        this.innerY = document.createElement("div");
+        this.innerY.className = "joystick-y";
+        this.dom.appendChild(this.innerY);
     }
     onTouchMove(event) {
         let bound = this.dom.getBoundingClientRect();
@@ -66,11 +71,15 @@ class Joystick {
         }
         this.x = x;
         this.y = y;
+        this.innerX.style.left = `${this.x * 50 + 50}%`;
+        this.innerY.style.top = `${this.y * 50 + 50}%`;
         this.active = active;
     }
     onTouchEnd(event) {
         this.x = 0;
         this.y = 0;
+        this.innerX.style.left = `${this.x * 50 + 50}%`;
+        this.innerY.style.top = `${this.y * 50 + 50}%`;
         this.active = false;
     }
     onMouseMove(event) {
@@ -83,12 +92,18 @@ class Joystick {
             this.y = lerpClamp(event.clientY, bound.top, bound.bottom, -1, 1);
             this.active = true;
         } else {
+            this.x = 0;
+            this.y = 0;
             this.active = false;
         }
+        this.innerX.style.left = `${this.x * 50 + 50}%`;
+        this.innerY.style.top = `${this.y * 50 + 50}%`;
     }
-    onMouseUp(event) {
+    onMouseLeave(event) {
         this.x = 0;
         this.y = 0;
+        this.innerX.style.left = `${this.x * 50 + 50}%`;
+        this.innerY.style.top = `${this.y * 50 + 50}%`;
         this.active = false;
     }
 }
@@ -165,11 +180,8 @@ class Bar {
 }
 
 window.onload = () => {
-    const socket = new WebSocket(`ws://${window.location.hostname}/ws`);
+    const socket = new WebSocket(`ws://192.168.4.1/ws`);
     socket.binaryType = "arraybuffer";
-    socket.addEventListener("open", event => {
-        socket.send("test");
-    });
     socket.addEventListener("message", event => {
         // telemetry {
         //   float batteryVoltage;
@@ -188,23 +200,22 @@ window.onload = () => {
         //   uint16_t y;
         //   uint16_t z;
         // }
-        console.log(event.data);
         let data = new DataView(event.data);
         telemetry.bv.update(data.getFloat32(0, false));
-        telemetry.bc.update(data.getFloat32(4, false));
+        telemetry.ba.update(data.getFloat32(4, false));
         telemetry.c1.update(data.getFloat32(8, false));
-        telemetry.c2.update(data.getFloat32(16, false));
-        telemetry.c3.update(data.getFloat32(20, false));
-        telemetry.c4.update(data.getFloat32(24, false));
-        telemetry.dl.update(data.getInt16(28, false) / 0x7000 * 100);
-        telemetry.dr.update(data.getInt16(30, false) / 0x7000 * 100);
-        let ax = data.getUInt16(32, false) / 0x10000;
-        let aj1 = data.getUInt16(34, false) / 0x10000;
-        let aj2 = data.getUInt16(36, false) / 0x10000;
-        let aj3 = data.getUInt16(38, false) / 0x10000;
-        let aex = data.getUInt16(40, false);
-        let aey = data.getUInt16(42, false);
-        let aez = data.getUInt16(44, false);
+        telemetry.c2.update(data.getFloat32(12, false));
+        telemetry.c3.update(data.getFloat32(16, false));
+        telemetry.c4.update(data.getFloat32(20, false));
+        telemetry.dl.update(Math.abs(data.getInt16(24, false) / 0x7000 * 100));
+        telemetry.dr.update(Math.abs(data.getInt16(26, false) / 0x7000 * 100));
+        let ax = data.getUint16(28, false) / 0x10000;
+        let aj1 = data.getUint16(30, false) / 0x10000;
+        let aj2 = data.getUint16(32, false) / 0x10000;
+        let aj3 = data.getUint16(34, false) / 0x10000;
+        let aex = data.getUint16(36, false);
+        let aey = data.getUint16(38, false);
+        let aez = data.getUint16(40, false);
 
         telemetry.ax.update(ax * 100);
         telemetry.aj1.update(aj1 * 100);
@@ -241,7 +252,7 @@ window.onload = () => {
     };
     let ik = false;
     let lastTime = performance.now();
-    let overridden = false;
+    let override = false;
     let locked = true;
 
     let drive = new Joystick("drive");
@@ -251,16 +262,30 @@ window.onload = () => {
     let on = document.getElementById("on");
     let off = document.getElementById("off");
     let display = document.getElementById("display");
-    let override = document.getElementById("override");
+    let overrideElements = Array.from(document.getElementsByClassName("override"));
 
+    overrideElements.forEach(dom => dom.style.backgroundColor = "#880");
+    overrideElements.forEach(dom => {
+        dom.addEventListener("click", _ => {
+            override = override ? false : authorized;
+            overrideElements.forEach(dom => dom.style.backgroundColor = override ? "#dd0" : "#880");
+        });
+    });
+    document.getElementById("telemetry").addEventListener("click", _ => document.body.requestFullscreen());
     lock.addEventListener("click", _ => {
         if (authorized) { authorized = false; }
         else {
             authorized = prompt("Password") === "nandgate";
         }
+        if (authorized) {
+            lock.children[0].style.display = "none"; lock.children[1].style.display = "initial";
+        } else {
+            lock.children[0].style.display = "initial"; lock.children[1].style.display = "none";
+        }
     });
+    lock.children[1].style.display = "none";
     on.addEventListener("click", _ => {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (authorized && socket.readyState === WebSocket.OPEN) {
             const buffer = new ArrayBuffer(1);
             new DataView(buffer).setUint8(0, 1);
             socket.send(buffer);
@@ -345,35 +370,36 @@ window.onload = () => {
         let buffer = new ArrayBuffer(10);
         let data = new DataView(buffer);
         data.setUint8(0, 2, false);
-        data.setUint8(1, overridden, false);
-        data.setInt16(2, leftSpeed / 0x7000, false);
-        data.setInt16(4, rightSpeed / 0x7000, false);
+        data.setUint8(1, override, false);
+        data.setInt16(2, leftSpeed * 0x7000, false);
+        data.setInt16(4, rightSpeed * 0x7000, false);
 
-        socket.send(buffer);
+        if (socket.readyState === WebSocket.OPEN) socket.send(buffer);
 
         if (ik) {
-            targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 1);
-            targetAngles.j1 = clamp(targetAngles.j1 + armRight.y * IK_SPEED * deltaT, 0, 1);
-            targetAngles.j2 = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 1);
-            targetAngles.j3 = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 1);
+            targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 500);
+            targetAngles.j1 = clamp(targetAngles.j1 + armRight.y * IK_SPEED * deltaT, 0, 500);
+            targetAngles.j2 = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
+            targetAngles.j3 = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
 
             data.setUint8(0, 4, false);
-            data.setUint8(1, overridden, false);
+            data.setUint8(1, override, false);
             data.setUint16(2, targetIK.x, false);
             data.setUint16(4, targetIK.y, false);
             data.setUint16(6, targetIK.z, false);
         } else {
-            targetAngles.x += clamp(armLeft.x * JOINT_SPEED * deltaT, 0, 500);
-            targetAngles.j1 += clamp(armLeft.y * JOINT_SPEED * deltaT, 0, 500);
-            targetAngles.j2 += clamp(armRight.x * JOINT_SPEED * deltaT, 0, 500);
-            targetAngles.j3 += clamp(armRight.y * JOINT_SPEED * deltaT, 0, 500);
+            targetAngles.x = clamp(targetAngles.x + armLeft.x * JOINT_SPEED * deltaT, 0, 1);
+            targetAngles.j1 = clamp(targetAngles.j1 + armLeft.y * JOINT_SPEED * deltaT, 0, 1);
+            targetAngles.j2 = clamp(targetAngles.j2 + armRight.x * JOINT_SPEED * deltaT, 0, 1);
+            targetAngles.j3 = clamp(targetAngles.j3 + armRight.y * JOINT_SPEED * deltaT, 0, 1);
 
             data.setUint8(0, 3, false);
-            data.setUint8(1, overridden, false);
-            data.setUint16(2, targetAngles.x / 0x10000, false);
-            data.setUint16(4, targetAngles.j1 / 0x10000, false);
-            data.setUint16(6, targetAngles.j2 / 0x10000, false);
-            data.setUint16(8, targetAngles.j3 / 0x10000, false);
+            data.setUint8(1, override, false);
+            data.setUint16(2, targetAngles.x * 0x10000, false);
+            data.setUint16(4, targetAngles.j1 * 0x10000, false);
+            data.setUint16(6, targetAngles.j2 * 0x10000, false);
+            data.setUint16(8, targetAngles.j3 * 0x10000, false);
         }
+        if (socket.readyState === WebSocket.OPEN) socket.send(buffer);
     }, COMMAND_INTERVAL * 1000);
 };
