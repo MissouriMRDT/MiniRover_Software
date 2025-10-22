@@ -151,20 +151,6 @@ class Bar {
         if (this.bottom !== undefined) {
             this.bottom.style.backgroundImage = `linear-gradient(to right, #800 ${this.nomMinP}%, #080 ${this.nomMinP}% ${this.nomMaxP}%, #880 ${this.nomMaxP}% 100%)`;
         }
-        /*if (this.value < this.nomMin) {
-            this.bottom.style.backgroundImage = `linear-gradient(to right, #d00 ${fill}%, #400 ${fill}% ${this.nomMinP}%, #040 ${this.nomMinP}% ${this.nomMaxP}%, #440 ${this.nomMaxP}% 100%)`;
-        } else if (this.value < this.nomMax) {
-            this.bottom.style.backgroundImage = `linear-gradient(to right, #d00 ${this.nomMinP}%, #0d0 ${this.nomMinP}% ${fill}%, #040 ${fill}% ${this.nomMaxP}%, #440 ${this.nomMaxP}% 100%)`;
-        } else {
-            this.bottom.style.backgroundImage = `linear-gradient(to right, #d00 ${this.nomMinP}%, #0d0 ${this.nomMinP}% ${this.nomMaxP}%, #dd0 ${this.nomMaxP}% ${fill}%, #440 ${fill}% 100%)`;
-        }*/
-        /*if (this.value < this.nomMin) {
-            this.top.style.backgroundImage = `linear-gradient(to right, #d00 ${fill}%, #888 ${fill}% ${this.nomMinP - 0.5}%, #f00 ${this.nomMinP - 0.5}% ${this.nomMinP + 0.5}%, #888 ${this.nomMinP + 0.5}% ${this.nomMaxP - 0.5}%, #ff0 ${this.nomMaxP - 0.5}% ${this.nomMaxP + 0.5}%, #888 ${this.nomMaxP + 0.5}% 100%)`;
-        } else if (this.value < this.nomMax) {
-            this.top.style.backgroundImage = `linear-gradient(to right, #0d0 ${this.nomMinP - 0.5}%, #f00 ${this.nomMinP - 0.5}% ${this.nomMinP + 0.5}%, #0d0 ${this.nomMinP + 0.5}% ${fill}%, #888 ${fill}% ${this.nomMaxP - 0.5}%, #ff0 ${this.nomMaxP - 0.5}% ${this.nomMaxP + 0.5}%, #888 ${this.nomMaxP + 0.5}% 100%)`;
-        } else {
-            this.top.style.backgroundImage = `linear-gradient(to right, #dd0 ${this.nomMinP - 0.5}%, #f00 ${this.nomMinP - 0.5}% ${this.nomMinP + 0.5}%, #dd0 ${this.nomMinP + 0.5}% ${this.nomMaxP - 0.5}%, #ff0 ${this.nomMaxP - 0.5}% ${this.nomMaxP + 0.5}%, #dd0 ${this.nomMaxP + 0.5}% ${fill}%, #888 ${fill}% 100%)`;
-        }*/
         if (this.value < this.nomMin) {
             this.top.style.backgroundImage = `linear-gradient(to right, #d00 ${fill}%, #000 0%)`;
         } else if (this.value < this.nomMax) {
