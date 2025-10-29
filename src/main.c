@@ -1,5 +1,5 @@
 #include "net.h"
-#include "oled.h"
+#include "tft.h"
 #include "web.h"
 #include <esp_log.h>
 #include <nvs_flash.h>
@@ -19,5 +19,5 @@ void app_main(void) {
   ESP_LOGI(TAG_MAIN, "ESP_WIFI_MODE_AP");
   wifi_init_softap();
   start_webserver();
-  oled_main();
+  tft_main();
 }

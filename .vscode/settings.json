@@ -6,6 +6,7 @@
         "esp_lcd_panel_vendor.h": "c",
         "esp_log.h": "c",
         "esp_lcd_panel_ssd1306.h": "c",
-        "esp_lcd_panel_dev.h": "c"
+        "esp_lcd_panel_dev.h": "c",
+        "gpio.h": "c"
     }
 }
