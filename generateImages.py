@@ -25,45 +25,36 @@ with open("data/images.js", "w") as f:
         f"const IMAGE_NAMES = [{", ".join([f'"{image_name}"' for image_name in image_names])}];"
     )
 
+packed_data = bytearray()
+for image_name in image_names:
+    image = Image.open(f"images/{image_name}")
+
+    scale = min(LCD_WIDTH / image.width, LCD_HEIGHT / image.height)
+
+    scaled_width = int(image.width * scale)
+    scaled_height = int(image.height * scale)
+
+    x = (LCD_WIDTH - scaled_width) // 2
+    y = (LCD_HEIGHT - scaled_height) // 2
+
+    background = Image.new("RGB", (LCD_WIDTH, LCD_HEIGHT))
+    background.paste(image.resize((scaled_width, scaled_height)), (x, y))
+    quantized = background.quantize(PALATTE_SIZE)
+    palette = quantized.getpalette()
+    assert len(palette) == PALATTE_SIZE * 3
+
+    for i in range(PALATTE_SIZE):
+        r = palette[i * 3]
+        g = palette[i * 3 + 1]
+        b = palette[i * 3 + 2]
+        packed_data.append((r & 0b11111000) | ((g >> 5) & 0b00000111))
+        packed_data.append(((g << 3) & 0b11100000) | ((b >> 3) & 0b00011111))
+
+    data = quantized.getdata()
+    for i in range(0, LCD_WIDTH * LCD_HEIGHT, 4):
+        packed_data.append(
+            data[i] | (data[i + 1] << 2) | (data[i + 2] << 4) | (data[i + 3] << 6)
+        )
+
 with open("data/images.bin", "wb") as f:
-    for image_name in image_names:
-        image = Image.open(f"images/{image_name}")
-
-        scale = min(LCD_WIDTH / image.width, LCD_HEIGHT / image.height)
-
-        scaled_width = int(image.width * scale)
-        scaled_height = int(image.height * scale)
-
-        x = (LCD_WIDTH - scaled_width) // 2
-        y = (LCD_HEIGHT - scaled_height) // 2
-
-        background = Image.new("RGB", (LCD_WIDTH, LCD_HEIGHT))
-        background.paste(image.resize((scaled_width, scaled_height)), (x, y))
-        quantized = background.quantize(PALATTE_SIZE)
-        palette = quantized.getpalette()
-        assert len(palette) == PALATTE_SIZE * 3
-
-        for i in range(PALATTE_SIZE):
-            r = palette[i * 3]
-            g = palette[i * 3 + 1]
-            b = palette[i * 3 + 2]
-            f.write(
-                bytearray(
-                    [
-                        (r & 0b11111000) | ((g >> 5) & 0b00000111),
-                        ((g << 3) & 0b11100000) | ((b >> 3) & 0b00011111),
-                    ]
-                )
-            )
-        data = quantized.getdata()
-        for i in range(0, LCD_WIDTH * LCD_HEIGHT, 4):
-            f.write(
-                bytearray(
-                    [
-                        data[i]
-                        | (data[i + 1] << 2)
-                        | (data[i + 2] << 4)
-                        | (data[i + 3] << 6)
-                    ]
-                )
-            )
+    f.write(packed_data)
