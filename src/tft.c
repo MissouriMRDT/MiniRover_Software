@@ -326,22 +326,23 @@ void tft_send_image_part(uint8_t part, uint16_t pixels[PIXELS_LENGTH]) {
   }
 }
 
+// idx: number of the iamge to draw
 // pixels: buffer to do calculations in, must have DMA_ATTR
-void tft_draw_logo(uint16_t pixels[PIXELS_LENGTH]) {
-  size_t offset = LOGO_COLORS * sizeof(uint16_t); // within logo data
-  uint16_t *colors = (uint16_t *)FILE_LOGO_START;
-  uint16_t color = 0;
+void tft_draw_image(uint8_t idx, uint16_t pixels[PIXELS_LENGTH]) {
+  size_t offset = IMAGE_BYTES * idx; // within logo data
+  uint16_t *colors = (uint16_t *)(FILE_IMAGES_START + offset);
+  offset += PALATTE_SIZE * sizeof(uint16_t);
   for (uint8_t part = 0; part < 4; part++) {
-    size_t position = 0;          // within pixels
-    size_t nextColorPosition = 0; // within pixels
+    size_t position = 0; // within pixels
     while (position < PIXELS_LENGTH) {
-      color = colors[(uint8_t)FILE_LOGO_START[offset++]];
-      nextColorPosition += (uint8_t)FILE_LOGO_START[offset++];
-      if (nextColorPosition > PIXELS_LENGTH)
-        nextColorPosition = PIXELS_LENGTH;
-      while (position < nextColorPosition) {
-        pixels[position++] = color;
-      }
+      pixels[position++] = colors[FILE_IMAGES_START[offset] & 0b00000011];
+      pixels[position++] =
+          colors[(FILE_IMAGES_START[offset] >> 2) & 0b00000011];
+      pixels[position++] =
+          colors[(FILE_IMAGES_START[offset] >> 4) & 0b00000011];
+      pixels[position++] =
+          colors[(FILE_IMAGES_START[offset] >> 6) & 0b00000011];
+      offset++;
     }
     tft_send_image_part(part, pixels);
   }

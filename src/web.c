@@ -62,6 +62,10 @@ static esp_err_t root_handler(httpd_req_t *req) {
     fileStart = FILE_FONT_START;
     fileEnd = FILE_FONT_END;
     httpd_resp_set_type(req, "font/woff2");
+  } else if (strcmp(req->uri, "/images.js") == 0) {
+    fileStart = FILE_IMAGE_JS_START;
+    fileEnd = FILE_IMAGE_JS_END;
+    httpd_resp_set_type(req, "text/javascript");
   } else if (strcmp(req->uri, "/main.js") == 0) {
     fileStart = FILE_JS_START;
     fileEnd = FILE_JS_END;
@@ -97,6 +101,7 @@ static const httpd_uri_t root_config = {.uri = "/?*",
 // 2: drive [bool override, i16 left, i16 right]
 // 3: arm target angles [bool override, u16 x, u16 j1, u16 j2, u16 j3]
 // 4: arm IK [bool override, u16 x, u16 y, u16 z]
+// 5: display image [u8 idx]
 typedef struct __attribute__((__packed__, scalar_storage_order("big-endian")))
 command {
   uint8_t id;
@@ -119,6 +124,9 @@ command {
       uint16_t y;
       uint16_t z;
     } armIK;
+    struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
+      uint8_t idx;
+    } display;
   };
 } command;
 
@@ -198,6 +206,10 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
     ESP_LOGI(TAG_WEB, "Command IK override: %s, x: %d, y: %d, z: %d",
              rxData.armIK.override ? "true" : "false", rxData.armIK.x,
              rxData.armIK.y, rxData.armIK.z);
+    break;
+  case 5:
+    ESP_LOGI(TAG_WEB, "Command DISPLAY idx: %d", rxData.display.idx);
+    tft_draw_image(rxData.display.idx, pixels);
     break;
   }
 

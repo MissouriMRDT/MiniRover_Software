@@ -286,9 +286,28 @@ window.onload = () => {
         }
     });
 
+    let uploadedImageNames = [];
+    let uploadedImages = [];
     const display = document.getElementById("display");
+    IMAGE_NAMES.forEach(name => display.appendChild(new Option(name)));
     display.addEventListener("change", _ => {
+        if (display.selectedIndex < IMAGE_NAMES.length) {
+            if (socket.readyState === WebSocket.OPEN) {
+                const buffer = new ArrayBuffer(2);
+                const data = new DataView(buffer);
+                data.setUint8(0, 5);
+                data.setUint8(1, display.selectedIndex);
+                socket.send(buffer);
+            }
+        } else {
+            fetch("/display", { method: "POST", body: uploadedImages[display.selectedIndex - IMAGE_NAMES.length] });
+        }
+    });
+
+    const upload = document.getElementById("upload");
+    upload.addEventListener("change", _ => {
         const fileReader = new FileReader();
+        const idx = uploadedImageNames.length;
         fileReader.onload = () => {
             const image = new Image();
             image.src = fileReader.result;
@@ -339,11 +358,12 @@ window.onload = () => {
                     convertedImageData[i * 2 + 1] = ((g << 3) & 0b11100000) | ((b >> 3) & 0b00011111);
                 }
 
-                // POST image data.
-                fetch("/display", { method: "POST", body: convertedImageData });
+                uploadedImages[idx] = convertedImageData;
             }
         }
-        fileReader.readAsDataURL(display.files[0]);
+        uploadedImageNames[idx] = upload.files[0].name;
+        display.appendChild(new Option(upload.files[0].name));
+        fileReader.readAsDataURL(upload.files[0]);
     });
 
     let telemetry = {

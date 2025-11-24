@@ -20,7 +20,9 @@ void app_main(void) {
   wifi_init_softap();
   start_webserver();
   tft_init();
-  tft_draw_logo(pixels);
+  tft_draw_image(1, pixels);
+  vTaskDelay(10000 / portTICK_PERIOD_MS);
+  tft_draw_image(0, pixels);
 
   while (1) {
     // needed to prevent watchdog triggering
