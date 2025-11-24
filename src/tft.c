@@ -1,13 +1,5 @@
 #include "tft.h"
 
-/* SPI Master example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_system.h"
@@ -24,18 +16,13 @@
 #define PIN_NUM_MISO 12
 #define PIN_NUM_MOSI 15
 #define PIN_NUM_CLK 14
-#define PIN_NUM_CS 17
+#define PIN_NUM_CS 16
 
-#define PIN_NUM_DC 16
-#define PIN_NUM_RST 11
-#define PIN_NUM_BCKL 13
+#define PIN_NUM_DC 17
+#define PIN_NUM_RST 13
+#define PIN_NUM_BCKL 18
 
 #define LCD_BK_LIGHT_ON_LEVEL 1
-
-// To speed up transfers, every SPI transfer sends a bunch of lines. This define
-// specifies how many. More means more memory use, but less overhead for setting
-// up / finishing transfers. Make sure 240 is dividable by this.
-#define PARALLEL_LINES 16
 
 /*
  The LCD needs a bunch of command/argument values to be initialized. They are
@@ -300,26 +287,10 @@ static void send_line_finish(spi_device_handle_t spi) {
   }
 }
 
-void tft_main() {
-  /*uint8_t bitmap[64 * 32 * 3] = {0};
-  uint16_t lfsr = 0xACE1u;
-  for (size_t i = 0; i < 64 * 32 * 3; i++) {
-    lfsr ^= lfsr >> 7;
-    lfsr ^= lfsr << 9;
-    lfsr ^= lfsr >> 13;
-    bitmap[i] = (uint8_t)(lfsr & 0x00ff);
-  }
-  ESP_LOGI(TAG_TFT, "esp_lcd_panel_disp_on_off");
-  initialize_spi();
-  ESP_LOGI(TAG_TFT, "esp_lcd_panel_disp_on_off");
-  initialize_display();
-  while (1) {
-    vTaskDelay(pdMS_TO_TICKS(10));
-    esp_lcd_panel_draw_bitmap(lcd_handle, 50, 50, 50 + 64, 50 + 32, bitmap);
-  }*/
-
+spi_device_handle_t spi;
+void tft_init() {
+  ESP_LOGI(TAG_TFT, "tft initializing");
   esp_err_t ret;
-  spi_device_handle_t spi;
   spi_bus_config_t buscfg = {.miso_io_num = PIN_NUM_MISO,
                              .mosi_io_num = PIN_NUM_MOSI,
                              .sclk_io_num = PIN_NUM_CLK,
@@ -327,13 +298,9 @@ void tft_main() {
                              .quadhd_io_num = -1,
                              .max_transfer_sz = PARALLEL_LINES * 320 * 2 + 8};
   spi_device_interface_config_t devcfg = {
-#ifdef CONFIG_LCD_OVERCLOCK
-      .clock_speed_hz = 26 * 1000 * 1000, // Clock out at 26 MHz
-#else
       .clock_speed_hz = 10 * 1000 * 1000, // Clock out at 10 MHz
-#endif
-      .mode = 0,                  // SPI mode 0
-      .spics_io_num = PIN_NUM_CS, // CS pin
+      .mode = 0,                          // SPI mode 0
+      .spics_io_num = PIN_NUM_CS,         // CS pin
       .queue_size = 7, // We want to be able to queue 7 transactions at a time
       .pre_cb = lcd_spi_pre_transfer_callback, // Specify pre-transfer callback
                                                // to handle D/C line
@@ -346,54 +313,36 @@ void tft_main() {
   ESP_ERROR_CHECK(ret);
   // Initialize the LCD
   lcd_init(spi);
+  ESP_LOGI(TAG_TFT, "tft initialized");
+}
 
-  uint16_t *lines[2];
-  // Allocate memory for the pixel buffers
-  for (int i = 0; i < 2; i++) {
-    lines[i] = spi_bus_dma_memory_alloc(
-        LCD_HOST, 320 * PARALLEL_LINES * sizeof(uint16_t), 0);
-    assert(lines[i] != NULL);
+// part: 0-4 top to bottom quarter slices of the screen
+// pixels: 1 uint16 per pixel g2 g1 g0 b4 b3 b2 b1 b0 r4 r3 r2 r1 r0 g5 g4 g3,
+// must have DMA_ATTR
+void tft_send_image_part(uint8_t part, uint16_t pixels[PIXELS_LENGTH]) {
+  if (part < 4) {
+    send_lines(spi, part * PARALLEL_LINES, pixels);
+    send_line_finish(spi);
   }
-  // Indexes of the line currently being sent to the LCD and the line we're
-  // calculating.
-  int sending_line = -1;
-  int calc_line = 0;
+}
 
-  int dst = 0;
-  for (int y = 0; y < PARALLEL_LINES; y++) {
-    for (int x = 0; x < 320; x++) {
-      lines[0][dst] = x * y;
-      lines[1][dst] = x * y;
-      dst++;
-    }
-  }
-  uint16_t lfsr = 0xACE1u;
-  while (1) {
-    for (int y = 0; y < 240; y += PARALLEL_LINES) {
-      // Calculate a line.
-      /*int dst = 0;
-      for (int y1 = y; y1 < y + PARALLEL_LINES; y1++) {
-        for (int x = 0; x < 320; x++) {
-          lfsr ^= lfsr >> 7;
-          lfsr ^= lfsr << 9;
-          lfsr ^= lfsr >> 13;
-          lines[calc_line][dst] = lfsr;
-          dst++;
-        }
-      }*/
-      // Finish up the sending process of the previous line, if any
-      if (sending_line != -1) {
-        send_line_finish(spi);
+// pixels: buffer to do calculations in, must have DMA_ATTR
+void tft_draw_logo(uint16_t pixels[PIXELS_LENGTH]) {
+  size_t offset = LOGO_COLORS * sizeof(uint16_t); // within logo data
+  uint16_t *colors = (uint16_t *)FILE_LOGO_START;
+  uint16_t color = 0;
+  for (uint8_t part = 0; part < 4; part++) {
+    size_t position = 0;          // within pixels
+    size_t nextColorPosition = 0; // within pixels
+    while (position < PIXELS_LENGTH) {
+      color = colors[(uint8_t)FILE_LOGO_START[offset++]];
+      nextColorPosition += (uint8_t)FILE_LOGO_START[offset++];
+      if (nextColorPosition > PIXELS_LENGTH)
+        nextColorPosition = PIXELS_LENGTH;
+      while (position < nextColorPosition) {
+        pixels[position++] = color;
       }
-      // Swap sending_line and calc_line
-      sending_line = calc_line;
-      calc_line = (calc_line == 1) ? 0 : 1;
-      // Send the line we currently calculated.
-      send_lines(spi, y, lines[sending_line]);
-      // The line set is queued up for sending now; the actual sending happens
-      // in the background. We can go on to calculate the next line set as long
-      // as we do not touch line[sending_line]; the SPI sending process is still
-      // reading from that.
     }
+    tft_send_image_part(part, pixels);
   }
 }

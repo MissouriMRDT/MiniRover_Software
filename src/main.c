@@ -19,5 +19,11 @@ void app_main(void) {
   ESP_LOGI(TAG_MAIN, "ESP_WIFI_MODE_AP");
   wifi_init_softap();
   start_webserver();
-  tft_main();
+  tft_init();
+  tft_draw_logo(pixels);
+
+  while (1) {
+    // needed to prevent watchdog triggering
+    vTaskDelay(100);
+  }
 }

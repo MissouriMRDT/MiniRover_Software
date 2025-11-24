@@ -1,9 +1,53 @@
 #include "web.h"
+#include "tft.h"
 #include <esp_check.h>
 #include <esp_err.h>
 #include <esp_http_server.h>
 #include <esp_log.h>
 #include <string.h>
+
+DMA_ATTR uint16_t pixels[PIXELS_LENGTH];
+static esp_err_t display_handler(httpd_req_t *req) {
+  ESP_LOGI(TAG_WEB, "/upload %i", req->content_len);
+  if (req->content_len > LCD_WIDTH * LCD_HEIGHT * 2)
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File too large.");
+
+  size_t remaining_bytes = req->content_len;
+  int received_bytes;
+  uint8_t part = 0;
+  while (remaining_bytes > 0) {
+    size_t bytes_in_part = PIXELS_BYTES - (remaining_bytes % PIXELS_BYTES);
+    size_t pixel_offset = 0;
+    ESP_LOGI(TAG_WEB, "Remaining bytes: %zu, bytes in part: %zu",
+             remaining_bytes, bytes_in_part);
+    while (pixel_offset < bytes_in_part) {
+      ESP_LOGI(TAG_WEB,
+               "Remaining bytes: %zu, reading %zu bytes into pixels + %zu",
+               remaining_bytes, bytes_in_part - pixel_offset, pixel_offset);
+      received_bytes = httpd_req_recv(req, (char *)&pixels + pixel_offset,
+                                      bytes_in_part - pixel_offset);
+      if (received_bytes <= 0) {
+        if (received_bytes == HTTPD_SOCK_ERR_TIMEOUT)
+          continue; // Retry read
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                            "Failed to receive file.");
+        return ESP_FAIL;
+      }
+      pixel_offset += received_bytes;
+      remaining_bytes -= received_bytes;
+    }
+    ESP_LOGI(TAG_WEB, "Sending part %i", part);
+    tft_send_image_part(part, pixels);
+    part++;
+  }
+
+  return ESP_OK;
+}
+
+httpd_uri_t display_config = {.uri = "/display",
+                              .method = HTTP_POST,
+                              .handler = display_handler,
+                              .user_ctx = NULL};
 
 static esp_err_t root_handler(httpd_req_t *req) {
   ESP_LOGI(TAG_WEB, "Request %s", req->uri);
@@ -209,8 +253,9 @@ httpd_handle_t start_webserver(void) {
   if (httpd_start(&server, &config) == ESP_OK) {
     // Registering the ws handler
     ESP_LOGI(TAG_WEB, "Registering URI handlers.");
-    httpd_register_uri_handler(server, &websocket_config);
-    httpd_register_uri_handler(server, &root_config);
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &websocket_config));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &display_config));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &root_config));
     return server;
   }
 

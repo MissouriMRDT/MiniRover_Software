@@ -8,3 +8,6 @@ dist
 build
 sdkconfig.*
 !sdkconfig.defaults
+CMakeCache.txt
+data/logo.bin
+venv

@@ -3,6 +3,8 @@ const GAMMA = 1.5;
 const JOINT_SPEED = 0.02; // range/s
 const IK_SPEED = 4; // mm/s
 const COMMAND_INTERVAL = 5; // s
+const LCD_WIDTH = 320;
+const LCD_HEIGHT = 240;
 
 function lerp(x, x0, x1, y0, y1) {
     return (y0 * (x1 - x) + y1 * (x - x0)) / (x1 - x0);
@@ -241,14 +243,13 @@ window.onload = () => {
     let override = false;
     let locked = true;
 
-    let drive = new Joystick("drive");
-    let armLeft = new Joystick("arm-left");
-    let armRight = new Joystick("arm-right");
-    let lock = document.getElementById("lock");
-    let on = document.getElementById("on");
-    let off = document.getElementById("off");
-    let display = document.getElementById("display");
-    let overrideElements = Array.from(document.getElementsByClassName("override"));
+    const drive = new Joystick("drive");
+    const armLeft = new Joystick("arm-left");
+    const armRight = new Joystick("arm-right");
+    const lock = document.getElementById("lock");
+    const on = document.getElementById("on");
+    const off = document.getElementById("off");
+    const overrideElements = Array.from(document.getElementsByClassName("override"));
 
     overrideElements.forEach(dom => dom.style.backgroundColor = "#880");
     overrideElements.forEach(dom => {
@@ -283,6 +284,66 @@ window.onload = () => {
             new DataView(buffer).setUint8(0, 0);
             socket.send(buffer);
         }
+    });
+
+    const display = document.getElementById("display");
+    display.addEventListener("change", _ => {
+        const fileReader = new FileReader();
+        fileReader.onload = () => {
+            const image = new Image();
+            image.src = fileReader.result;
+
+            image.onload = () => {
+                // Scale preserves aspect ratio.
+                const scale = Math.min(
+                    LCD_WIDTH / image.naturalWidth,
+                    LCD_HEIGHT / image.naturalHeight
+                );
+
+                const scaledWidth = image.naturalWidth * scale;
+                const scaledHeight = image.naturalHeight * scale;
+
+                // Center image.
+                const x = (LCD_WIDTH - scaledWidth) / 2;
+                const y = (LCD_HEIGHT - scaledHeight) / 2;
+
+                // Preform anti-aliasing by bluring image by 1 / (scale * 2)
+                const antiAliasingCanvas = document.createElement("canvas");
+                const antiAliasingCanvasContext = antiAliasingCanvas.getContext("2d");
+                antiAliasingCanvas.width = image.width;
+                antiAliasingCanvas.height = image.height;
+                antiAliasingCanvasContext.filter = `blur(${(1 / scale) >> 1}px)`;
+                antiAliasingCanvasContext.drawImage(image, 0, 0);
+
+
+                // Assemble background and scale and translate image.
+                const canvas = document.createElement("canvas");
+                const canvasContext = canvas.getContext("2d");
+                canvas.width = LCD_WIDTH;
+                canvas.height = LCD_HEIGHT;
+
+                canvasContext.fillStyle = "#000";
+                canvasContext.fillRect(0, 0, LCD_WIDTH, LCD_HEIGHT);
+                canvasContext.drawImage(antiAliasingCanvas, 0, 0, image.width, image.height, x, y, scaledWidth, scaledHeight);
+
+                // Convert image data.
+                const rawImageData = canvasContext.getImageData(0, 0, LCD_WIDTH, LCD_HEIGHT, { "colorSpace": "srgb", "pixelFormat": "rgba-unorm8" }).data;
+                const convertedImageData = new Uint8Array(LCD_WIDTH * LCD_HEIGHT * 2);
+                for (let i = 0; i < LCD_WIDTH * LCD_HEIGHT; i++) {
+                    let r = rawImageData[i * 4];
+                    let g = rawImageData[i * 4 + 1];
+                    let b = rawImageData[i * 4 + 2];
+                    // r4 r3 r2 r1 r0 g5 g4 g3 = r7 r6 r5 r4 r3 g7 g6 g5
+                    convertedImageData[i * 2] = (r & 0b11111000) | ((g >> 5) & 0b00000111);
+                    // g2 g1 g0 b4 b3 b2 b1 b0 = g4 g3 g2 b7 b6 b5 b4 b3
+                    convertedImageData[i * 2 + 1] = ((g << 3) & 0b11100000) | ((b >> 3) & 0b00011111);
+                }
+
+                // POST image data.
+                fetch("/display", { method: "POST", body: convertedImageData });
+            }
+        }
+        fileReader.readAsDataURL(display.files[0]);
     });
 
     let telemetry = {

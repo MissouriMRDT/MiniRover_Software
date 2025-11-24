@@ -2,6 +2,7 @@
 #define _WEB_H_
 
 #include <esp_http_server.h>
+#include <tft.h>
 
 static const char *TAG_WEB = "web.c";
 
@@ -15,6 +16,8 @@ extern const char FILE_JS_START[] asm("_binary_main_js_start");
 extern const char FILE_JS_END[] asm("_binary_main_js_end");
 extern const char FILE_CSS_START[] asm("_binary_style_css_start");
 extern const char FILE_CSS_END[] asm("_binary_style_css_end");
+
+extern uint16_t pixels[PIXELS_LENGTH];
 
 httpd_handle_t start_webserver(void);
 #endif
