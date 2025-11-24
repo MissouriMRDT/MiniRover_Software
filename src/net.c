@@ -25,19 +25,19 @@ void wifi_init_softap(void) {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-  esp_netif_t *esp_netif_ap = esp_netif_create_default_wifi_ap();
+  esp_netif_t *espNetifAP = esp_netif_create_default_wifi_ap();
 
-  esp_netif_ip_info_t IP_settings_ap;
-  IP_settings_ap.ip.addr = 0x0104a8c0;      // 192.168.4.1
-  IP_settings_ap.netmask.addr = 0x00ffffff; // 255.255.255.0
-  IP_settings_ap.gw.addr = 0x0104a8c0;      // 192.168.4.1
+  esp_netif_ip_info_t IPSettingsAP;
+  IPSettingsAP.ip.addr = 0x0104a8c0;      // 192.168.4.1
+  IPSettingsAP.netmask.addr = 0x00ffffff; // 255.255.255.0
+  IPSettingsAP.gw.addr = 0x0104a8c0;      // 192.168.4.1
 
-  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(esp_netif_ap));
-  esp_netif_set_ip_info(esp_netif_ap, &IP_settings_ap);
+  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_stop(espNetifAP));
+  esp_netif_set_ip_info(espNetifAP, &IPSettingsAP);
   ESP_ERROR_CHECK(esp_netif_dhcps_option(
-      esp_netif_ap, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI,
+      espNetifAP, ESP_NETIF_OP_SET, ESP_NETIF_CAPTIVEPORTAL_URI,
       "http://192.168.4.1", strlen("http://192.168.4.1")));
-  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(esp_netif_ap));
+  ESP_ERROR_CHECK_WITHOUT_ABORT(esp_netif_dhcps_start(espNetifAP));
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
   ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -45,7 +45,7 @@ void wifi_init_softap(void) {
   ESP_ERROR_CHECK(esp_event_handler_instance_register(
       WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL, NULL));
 
-  wifi_config_t wifi_config = {
+  wifi_config_t wifiConfig = {
       .ap =
           {
               .ssid = WIFI_SSID,
@@ -63,7 +63,7 @@ void wifi_init_softap(void) {
   };
 
   ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifiConfig));
   ESP_ERROR_CHECK(esp_wifi_start());
 
   ESP_LOGI(TAG_NET,

@@ -12,29 +12,29 @@ static esp_err_t display_handler(httpd_req_t *req) {
   if (req->content_len > LCD_WIDTH * LCD_HEIGHT * 2)
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File too large.");
 
-  size_t remaining_bytes = req->content_len;
-  int received_bytes;
+  size_t remainingBytes = req->content_len;
+  int receivedBytes;
   uint8_t part = 0;
-  while (remaining_bytes > 0) {
-    size_t bytes_in_part = PIXELS_BYTES - (remaining_bytes % PIXELS_BYTES);
-    size_t pixel_offset = 0;
+  while (remainingBytes > 0) {
+    size_t bytesInPart = PIXELS_BYTES - (remainingBytes % PIXELS_BYTES);
+    size_t pixelOffset = 0;
     ESP_LOGI(TAG_WEB, "Remaining bytes: %zu, bytes in part: %zu",
-             remaining_bytes, bytes_in_part);
-    while (pixel_offset < bytes_in_part) {
+             remainingBytes, bytesInPart);
+    while (pixelOffset < bytesInPart) {
       ESP_LOGI(TAG_WEB,
                "Remaining bytes: %zu, reading %zu bytes into pixels + %zu",
-               remaining_bytes, bytes_in_part - pixel_offset, pixel_offset);
-      received_bytes = httpd_req_recv(req, (char *)&pixels + pixel_offset,
-                                      bytes_in_part - pixel_offset);
-      if (received_bytes <= 0) {
-        if (received_bytes == HTTPD_SOCK_ERR_TIMEOUT)
+               remainingBytes, bytesInPart - pixelOffset, pixelOffset);
+      receivedBytes = httpd_req_recv(req, (char *)&pixels + pixelOffset,
+                                     bytesInPart - pixelOffset);
+      if (receivedBytes <= 0) {
+        if (receivedBytes == HTTPD_SOCK_ERR_TIMEOUT)
           continue; // Retry read
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
                             "Failed to receive file.");
         return ESP_FAIL;
       }
-      pixel_offset += received_bytes;
-      remaining_bytes -= received_bytes;
+      pixelOffset += receivedBytes;
+      remainingBytes -= receivedBytes;
     }
     ESP_LOGI(TAG_WEB, "Sending part %i", part);
     tft_send_image_part(part, pixels);
@@ -44,10 +44,10 @@ static esp_err_t display_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
-httpd_uri_t display_config = {.uri = "/display",
-                              .method = HTTP_POST,
-                              .handler = display_handler,
-                              .user_ctx = NULL};
+httpd_uri_t displayConfig = {.uri = "/display",
+                             .method = HTTP_POST,
+                             .handler = display_handler,
+                             .user_ctx = NULL};
 
 static esp_err_t root_handler(httpd_req_t *req) {
   ESP_LOGI(TAG_WEB, "Request %s", req->uri);
@@ -90,10 +90,10 @@ static esp_err_t root_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
-static const httpd_uri_t root_config = {.uri = "/?*",
-                                        .method = HTTP_GET,
-                                        .handler = root_handler,
-                                        .user_ctx = NULL};
+static const httpd_uri_t rootConfig = {.uri = "/?*",
+                                       .method = HTTP_GET,
+                                       .handler = root_handler,
+                                       .user_ctx = NULL};
 
 // id: union
 // 0: off
@@ -117,13 +117,13 @@ command {
       uint16_t j1;
       uint16_t j2;
       uint16_t j3;
-    } armAngles;
+    } arm_angles;
     struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
       bool override;
       uint16_t x;
       uint16_t y;
       uint16_t z;
-    } armIK;
+    } arm_IK;
     struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
       uint8_t idx;
     } display;
@@ -132,8 +132,8 @@ command {
 
 typedef struct __attribute__((__packed__, scalar_storage_order("big-endian")))
 telemetry {
-  float batteryVoltage;
-  float batteryCurrent;
+  float battery_voltage;
+  float battery_current;
   float cell1;
   float cell2;
   float cell3;
@@ -199,13 +199,13 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
   case 3:
     ESP_LOGI(TAG_WEB,
              "Command ANGLES override: %s, x: %d, j1: %d, j2: %d, j3: %d",
-             rxData.armAngles.override ? "true" : "false", rxData.armAngles.x,
-             rxData.armAngles.j1, rxData.armAngles.j2, rxData.armAngles.j3);
+             rxData.arm_angles.override ? "true" : "false", rxData.arm_angles.x,
+             rxData.arm_angles.j1, rxData.arm_angles.j2, rxData.arm_angles.j3);
     break;
   case 4:
     ESP_LOGI(TAG_WEB, "Command IK override: %s, x: %d, y: %d, z: %d",
-             rxData.armIK.override ? "true" : "false", rxData.armIK.x,
-             rxData.armIK.y, rxData.armIK.z);
+             rxData.arm_IK.override ? "true" : "false", rxData.arm_IK.x,
+             rxData.arm_IK.y, rxData.arm_IK.z);
     break;
   case 5:
     ESP_LOGI(TAG_WEB, "Command DISPLAY idx: %d", rxData.display.idx);
@@ -213,8 +213,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
     break;
   }
 
-  txData.batteryVoltage = 12.3;
-  txData.batteryCurrent = 10.1;
+  txData.battery_voltage = 12.3;
+  txData.battery_current = 10.1;
   txData.cell1 = 1.1;
   txData.cell2 = 1.2;
   txData.cell3 = 2.1;
@@ -249,11 +249,11 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
-static const httpd_uri_t websocket_config = {.uri = "/ws",
-                                             .method = HTTP_GET,
-                                             .handler = websocket_handler,
-                                             .user_ctx = NULL,
-                                             .is_websocket = true};
+static const httpd_uri_t websocketConfig = {.uri = "/ws",
+                                            .method = HTTP_GET,
+                                            .handler = websocket_handler,
+                                            .user_ctx = NULL,
+                                            .is_websocket = true};
 
 httpd_handle_t start_webserver(void) {
   httpd_handle_t server = NULL;
@@ -265,9 +265,9 @@ httpd_handle_t start_webserver(void) {
   if (httpd_start(&server, &config) == ESP_OK) {
     // Registering the ws handler
     ESP_LOGI(TAG_WEB, "Registering URI handlers.");
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &websocket_config));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &display_config));
-    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &root_config));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &websocketConfig));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &displayConfig));
+    ESP_ERROR_CHECK(httpd_register_uri_handler(server, &rootConfig));
     return server;
   }
 

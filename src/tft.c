@@ -43,7 +43,7 @@ typedef enum {
 
 // Place data into DRAM. Constant data gets placed into DROM by default, which
 // is not accessible by DMA.
-DRAM_ATTR static const lcd_init_cmd_t lcd_init_cmds[] = {
+DRAM_ATTR static const lcd_init_cmd_t lcdInitCmds[] = {
     /* Power control B, power control = 0, DC_ENA = 1 */
     {0xCF, {0x00, 0x83, 0X30}, 3},
     /* Power on sequence control,
@@ -116,14 +116,14 @@ DRAM_ATTR static const lcd_init_cmd_t lcd_init_cmds[] = {
  * mode for higher speed. The overhead of interrupt transactions is more than
  * just waiting for the transaction to complete.
  */
-void lcd_cmd(spi_device_handle_t spi, const uint8_t cmd, bool keep_cs_active) {
+void lcd_cmd(spi_device_handle_t spi, const uint8_t cmd, bool keepCSActive) {
   esp_err_t ret;
   spi_transaction_t t;
   memset(&t, 0, sizeof(t)); // Zero out the transaction
   t.length = 8;             // Command is 8 bits
   t.tx_buffer = &cmd;       // The data is the cmd itself
   t.user = (void *)0;       // D/C needs to be set to 0
-  if (keep_cs_active) {
+  if (keepCSActive) {
     t.flags = SPI_TRANS_CS_KEEP_ACTIVE; // Keep CS active after data transfer
   }
   ret = spi_device_polling_transmit(spi, &t); // Transmit!
@@ -185,12 +185,12 @@ void lcd_init(spi_device_handle_t spi) {
   int cmd = 0;
 
   // Initialize non-SPI GPIOs
-  gpio_config_t io_conf = {};
-  io_conf.pin_bit_mask =
+  gpio_config_t ioConf = {};
+  ioConf.pin_bit_mask =
       ((1ULL << PIN_NUM_DC) | (1ULL << PIN_NUM_RST) | (1ULL << PIN_NUM_BCKL));
-  io_conf.mode = GPIO_MODE_OUTPUT;
-  io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-  gpio_config(&io_conf);
+  ioConf.mode = GPIO_MODE_OUTPUT;
+  ioConf.pull_up_en = GPIO_PULLUP_ENABLE;
+  gpio_config(&ioConf);
 
   // Reset the display
   gpio_set_level(PIN_NUM_RST, 0);
@@ -200,10 +200,10 @@ void lcd_init(spi_device_handle_t spi) {
 
   // Send all the commands
   ESP_LOGI(TAG_TFT, "LCD ILI9341 initialization.");
-  while (lcd_init_cmds[cmd].databytes != 0xff) {
-    lcd_cmd(spi, lcd_init_cmds[cmd].cmd, false);
-    lcd_data(spi, lcd_init_cmds[cmd].data, lcd_init_cmds[cmd].databytes & 0x1F);
-    if (lcd_init_cmds[cmd].databytes & 0x80) {
+  while (lcdInitCmds[cmd].databytes != 0xff) {
+    lcd_cmd(spi, lcdInitCmds[cmd].cmd, false);
+    lcd_data(spi, lcdInitCmds[cmd].data, lcdInitCmds[cmd].databytes & 0x1F);
+    if (lcdInitCmds[cmd].databytes & 0x80) {
       vTaskDelay(100 / portTICK_PERIOD_MS);
     }
     cmd++;
