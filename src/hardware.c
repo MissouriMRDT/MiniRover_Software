@@ -4,8 +4,6 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "stdint.h"
-#include <esp_log.h>
-#include <esp_timer.h>
 
 bool estop_get(void) {
   // TODO: return true if estop depressed
@@ -14,12 +12,10 @@ bool estop_get(void) {
 
 void buzzer_set(bool on) {
   // TODO: turn on and off buzer
-  ESP_LOGI("hardware.c", "buzzer %s", on ? "on" : "off");
 }
 
 void esc_enabled_set(bool enabled) {
   // TODO: enable and disable ESC
-  ESP_LOGI("hardware.c", "esc %s", enabled ? "enabled" : "disabled");
 }
 
 void motor_control_init(void) {
@@ -43,7 +39,6 @@ void motor_control_init(void) {
       .hpoint = 0,
   };
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));*/
-  ESP_LOGI("hardware.c", "motor_control_init");
 }
 
 void motor_control_set(int16_t left, int16_t right, uint16_t x, uint16_t j2,
@@ -54,15 +49,8 @@ void motor_control_set(int16_t left, int16_t right, uint16_t x, uint16_t j2,
 
   // ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0));
   // ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
-  ESP_LOGI("hardware.c", "left %d right %d x %u j2 %u j3 %u", left, right, x,
-           j2, j3);
 }
 
 void current_sense_get(float *esc, float *cell1, float *cell2, float *cell3) {
   // TODO: Read, calculate, and return ESC and cell sense values.
-  int64_t now = esp_timer_get_time();
-  *esc = (float)(now % 1000000) / 1000000 + 0.1;
-  *cell1 = (float)(now % 1000000) / 1000000 + 0.2;
-  *cell2 = (float)(now % 1000000) / 1000000 + 0.3;
-  *cell3 = (float)(now % 1000000) / 1000000 + 0.4;
 }

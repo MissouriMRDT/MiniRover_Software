@@ -11,6 +11,9 @@ static const char *TAG_WEB = "web.c";
 // Duration in us of priority
 #define PRIORITY_TIMEOUT 5000000
 
+// Delay in ms between mainloop iterations
+#define MAINLOOP_DELAY 100
+
 #define SEND_CHUNK_SIZE 8192
 
 extern const char FILE_FONT_START[] asm("_binary_B612Mono_woff2_start");

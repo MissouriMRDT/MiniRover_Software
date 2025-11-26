@@ -37,6 +37,7 @@ class Joystick {
     x;
     y;
     active;
+    disabled;
     innerX;
     innerY;
     constructor(id) {
@@ -188,48 +189,63 @@ window.onload = () => {
     let driveActiveUntil = 0;
     let armActiveUntil = 0;
     let override = false;
-    let locked = true;
 
     const drive = new Joystick("drive");
     const armLeft = new Joystick("arm-left");
     const armRight = new Joystick("arm-right");
-    const lock = document.getElementById("lock");
-    const on = document.getElementById("on");
-    const off = document.getElementById("off");
-    const overrideElements = Array.from(document.getElementsByClassName("override"));
+    const dom = ["lock", "on", "off", "ik", "override", "speed", "setSpeed", "telemetry", "display", "upload"].reduce((a, v) => ({ ...a, [v]: document.getElementById(v) }), {});
 
-    overrideElements.forEach(dom => dom.style.backgroundColor = "#880");
-    overrideElements.forEach(dom => {
-        dom.addEventListener("click", _ => {
-            override = override ? false : authorized;
-            overrideElements.forEach(dom => dom.style.backgroundColor = override ? "#dd0" : "#880");
-        });
+    dom.ik.style.backgroundColor = "#008";
+    dom.ik.addEventListener("click", _ => {
+        ik = !ik;
+        dom.ik.style.backgroundColor = ik ? "#00d" : "#008";
     });
-    document.getElementById("telemetry").addEventListener("click", _ => document.body.requestFullscreen());
-    lock.addEventListener("click", _ => {
+    dom.speed.disabled = true;
+    dom.speed.valueAsNumber = 1;
+    dom.setSpeed.disabled = true;
+    dom.setSpeed.addEventListener("click", _ => {
+        if (authorized && socket.readyState === WebSocket.OPEN) {
+            const buffer = new ArrayBuffer(8);
+            const data = new DataView(buffer);
+            data.setUint8(0, 6, true);
+            data.setUint8(1, override, true);
+            data.setUint16(2, dom.speed.valueAsNumber * 0x10000, true);
+            socket.send(buffer);
+        }
+    });
+    dom.override.disabled = true;
+    dom.override.addEventListener("click", _ => {
+        if (authorized) override = !override;
+        dom.override.className = override ? "active" : "";
+    });
+    dom.telemetry.addEventListener("click", _ => document.body.requestFullscreen());
+    dom.lock.addEventListener("click", _ => {
         if (authorized) { authorized = false; }
         else {
             authorized = prompt("Password") === "nandgate";
         }
+        dom.speed.disabled = !authorized;
+        dom.override.disabled = !authorized;
+        dom.setSpeed.disabled = !authorized;
         if (authorized) {
-            lock.children[0].style.display = "none"; lock.children[1].style.display = "initial";
+            dom.lock.children[0].style.display = "none"; dom.lock.children[1].style.display = "initial";
         } else {
-            lock.children[0].style.display = "initial"; lock.children[1].style.display = "none";
+            dom.lock.children[0].style.display = "initial"; dom.lock.children[1].style.display = "none";
         }
     });
-    lock.children[1].style.display = "none";
-    on.addEventListener("click", _ => {
+    dom.lock.children[1].style.display = "none";
+    dom.on.addEventListener("click", _ => {
         if (authorized && socket.readyState === WebSocket.OPEN) {
-            const buffer = new ArrayBuffer(1);
+            const buffer = new ArrayBuffer(8);
             const data = new DataView(buffer);
             data.setUint8(0, 1, true);
             data.setUint8(1, override, true);
             socket.send(buffer);
         }
     });
-    off.addEventListener("click", _ => {
+    dom.off.addEventListener("click", _ => {
         if (socket.readyState === WebSocket.OPEN) {
-            const buffer = new ArrayBuffer(1);
+            const buffer = new ArrayBuffer(8);
             const data = new DataView(buffer);
             data.setUint8(0, 0, true);
             data.setUint8(1, override, true);
@@ -239,25 +255,23 @@ window.onload = () => {
 
     let uploadedImageNames = [];
     let uploadedImages = [];
-    const display = document.getElementById("display");
-    IMAGE_NAMES.forEach(name => display.appendChild(new Option(name)));
-    display.addEventListener("change", _ => {
-        if (display.selectedIndex < IMAGE_NAMES.length) {
+    IMAGE_NAMES.forEach(name => dom.display.appendChild(new Option(name)));
+    dom.display.addEventListener("change", _ => {
+        if (dom.display.selectedIndex < IMAGE_NAMES.length) {
             if (socket.readyState === WebSocket.OPEN) {
-                const buffer = new ArrayBuffer(2);
+                const buffer = new ArrayBuffer(8);
                 const data = new DataView(buffer);
                 data.setUint8(0, 5, true);
                 data.setUint8(1, override, true);
-                data.setUint8(2, display.selectedIndex, true);
+                data.setUint8(2, dom.display.selectedIndex, true);
                 socket.send(buffer);
             }
         } else {
-            fetch("/display", { method: "POST", body: uploadedImages[display.selectedIndex - IMAGE_NAMES.length] });
+            fetch("/display", { method: "POST", body: uploadedImages[dom.display.selectedIndex - IMAGE_NAMES.length] });
         }
     });
 
-    const upload = document.getElementById("upload");
-    upload.addEventListener("change", _ => {
+    dom.upload.addEventListener("change", _ => {
         const fileReader = new FileReader();
         const idx = uploadedImageNames.length;
         fileReader.onload = () => {
@@ -313,26 +327,25 @@ window.onload = () => {
                 uploadedImages[idx] = convertedImageData;
             }
         }
-        uploadedImageNames[idx] = upload.files[0].name;
-        display.appendChild(new Option(upload.files[0].name));
-        fileReader.readAsDataURL(upload.files[0]);
+        uploadedImageNames[idx] = dom.upload.files[0].name;
+        dom.display.appendChild(new Option(dom.upload.files[0].name));
+        fileReader.readAsDataURL(dom.upload.files[0]);
     });
 
     let telemetry = {
-        "bv": [0, 8, 12, 15, ["@V", 2, 1]],
-        "ba": [0, 0, 10, 12, ["@A", 2, 1]],
-        "c1": [0, 2, 3, 4, ["@V 1", 1, 1]],
-        "c2": [0, 2, 3, 4, ["@V 2", 1, 1]],
-        "c3": [0, 2, 3, 4, ["@V 3", 1, 1]],
-        "c4": [0, 2, 3, 4, ["@V 4", 1, 1]],
-        "dl": [0, 0, 100, 100, ["@% L", 3, 0]],
-        "dr": [0, 0, 100, 100, ["@% R", 3, 0]],
-        "ax": [0, 0, 100, 100, ["@% X", 3, 0]],
-        "aj2": [0, 0, 100, 100, ["@% J2", 3, 0]],
-        "aj3": [0, 0, 100, 100, ["@% J3", 3, 0]],
-        "aex": [-500, -500, 500, 500, ["@mm X", 3, 0]],
-        "aey": [-500, -500, 500, 500, ["@mm Y", 3, 0]],
-        "aez": [-500, -500, 500, 500, ["@mm Z", 3, 0]],
+        bv: [0, 8, 12, 15, ["@V", 2, 1]],
+        ea: [0, 0, 10, 12, ["@A", 2, 1]],
+        c1: [0, 2, 3, 4, ["@V 1", 1, 1]],
+        c2: [0, 2, 3, 4, ["@V 2", 1, 1]],
+        c3: [0, 2, 3, 4, ["@V 3", 1, 1]],
+        dl: [0, 0, 100, 100, ["@% L", 3, 0]],
+        dr: [0, 0, 100, 100, ["@% R", 3, 0]],
+        ax: [0, 0, 100, 100, ["@% X", 3, 0]],
+        aj2: [0, 0, 100, 100, ["@% J2", 3, 0]],
+        aj3: [0, 0, 100, 100, ["@% J3", 3, 0]],
+        aex: [-500, -500, 500, 500, ["@mm X", 3, 0]],
+        aey: [-500, -500, 500, 500, ["@mm Y", 3, 0]],
+        aez: [-500, -500, 500, 500, ["@mm Z", 3, 0]],
     };
     Object.keys(telemetry).forEach(id => {
         telemetry[id] = new Bar(id, ...telemetry[id]);
@@ -340,20 +353,50 @@ window.onload = () => {
 
     socket.addEventListener("message", event => {
         let data = new DataView(event.data);
-        telemetry.bv.update(data.getFloat32(16, true));
-        telemetry.ba.update(data.getFloat32(20, true));
-        telemetry.c1.update(data.getFloat32(24, true));
-        telemetry.c2.update(data.getFloat32(28, true));
-        telemetry.c3.update(data.getFloat32(32, true));
-        telemetry.c4.update(data.getFloat32(36, true));
-        telemetry.dl.update(Math.abs(data.getInt16(40, true) / 0x7000 * 100));
-        telemetry.dr.update(Math.abs(data.getInt16(42, true) / 0x7000 * 100));
-        let ax = data.getUint16(44, true) / 0x10000;
-        let aj2 = data.getUint16(46, true) / 0x10000;
-        let aj3 = data.getUint16(48, true) / 0x10000;
-        let aex = data.getInt16(50, true);
-        let aey = data.getInt16(52, true);
-        let aez = data.getInt16(54, true);
+
+        let fd = data.getInt32(0, true);
+        let drivePriorityFD = data.getInt32(4, true);
+        let armPriorityFD = data.getInt32(8, true);
+        let overrideFD = data.getInt32(12, true);
+        if (overrideFD !== -1) {
+            if (overrideFD === fd) {
+                drive.dom.className = "joystick override";
+                armLeft.dom.className = "joystick override";
+                armRight.dom.className = "joystick override";
+            } else {
+                drive.dom.className = "joystick overridden";
+                armLeft.dom.className = "joystick overridden";
+                armRight.dom.className = "joystick overridden";
+            }
+        } else {
+            if (drivePriorityFD === -1) {
+                drive.dom.className = "joystick";
+            } else {
+                drive.dom.className = drivePriorityFD === fd ? "joystick priority" : "joystick de-prioritized";
+            }
+            if (armPriorityFD === -1) {
+                armLeft.dom.className = "joystick";
+                armRight.dom.className = "joystick";
+            } else {
+                armLeft.dom.className = armPriorityFD === fd ? "joystick priority" : "joystick de-prioritized";
+                armRight.dom.className = armPriorityFD === fd ? "joystick priority" : "joystick de-prioritized";
+            }
+        }
+
+        telemetry.bv.update(data.getFloat32(20, true) + data.getFloat32(24, true) + data.getFloat32(28, true));
+        telemetry.ea.update(data.getFloat32(16, true));
+        telemetry.c1.update(data.getFloat32(20, true));
+        telemetry.c2.update(data.getFloat32(24, true));
+        telemetry.c3.update(data.getFloat32(28, true));
+        telemetry.dl.update(Math.abs(data.getInt16(32, true) / 0x7000 * 100));
+        telemetry.dr.update(Math.abs(data.getInt16(34, true) / 0x7000 * 100));
+        let ax = data.getUint16(36, true) / 0x10000;
+        let aj2 = data.getUint16(38, true) / 0x10000;
+        let aj3 = data.getUint16(40, true) / 0x10000;
+        let aex = data.getInt16(42, true);
+        let aey = data.getInt16(44, true);
+        let aez = data.getInt16(46, true);
+        if (!authorized) dom.speed.valueAsNumber = data.getUint16(48, true) / 0x10000;
 
         telemetry.ax.update(ax * 100);
         telemetry.aj2.update(aj2 * 100);
@@ -379,15 +422,15 @@ window.onload = () => {
         let deltaT = (now - lastTime) * 1000;
         lastTime = now;
 
-        let driveSpeed = 1; // TODO: change max drive speed.
+        let driveSpeed = dom.speed.valueAsNumber;
         let driveX = drive.x;
         let driveY = drive.y;
         // Scale exponentially.
         driveX = driveX < 0 ? -Math.pow(-driveX, GAMMA) : Math.pow(driveX, GAMMA);
         driveY = driveY < 0 ? -Math.pow(-driveY, GAMMA) : Math.pow(driveY, GAMMA);
         let [leftSpeed, rightSpeed] = arcadeDrive(driveX, driveY);
-        leftSpeed = clamp(leftSpeed, -1, 1, -driveSpeed, driveSpeed);
-        rightSpeed = clamp(rightSpeed, -1, 1, -driveSpeed, driveSpeed);
+        leftSpeed = lerpClamp(leftSpeed, -1, 1, -driveSpeed, driveSpeed);
+        rightSpeed = lerpClamp(rightSpeed, -1, 1, -driveSpeed, driveSpeed);
 
         let buffer = new ArrayBuffer(8);
         let data = new DataView(buffer);

@@ -276,7 +276,7 @@ static void send_line_finish(spi_device_handle_t spi) {
 
 spi_device_handle_t spi;
 void tft_init() {
-  ESP_LOGI(TAG_TFT, "tft initializing");
+  ESP_LOGI(TAG_TFT, "TFT initializing.");
   esp_err_t ret;
   spi_bus_config_t buscfg = {.miso_io_num = PIN_TFT_MISO,
                              .mosi_io_num = PIN_TFT_MOSI,
@@ -300,7 +300,7 @@ void tft_init() {
   ESP_ERROR_CHECK(ret);
   // Initialize the LCD
   lcd_init(spi);
-  ESP_LOGI(TAG_TFT, "tft initialized");
+  ESP_LOGI(TAG_TFT, "TFT initialized.");
 }
 
 // part: 0-4 top to bottom quarter slices of the screen

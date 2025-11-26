@@ -18,6 +18,14 @@ body {
     border: 5px solid #fff;
 }
 
+.joystick.overridden {
+    background: repeating-linear-gradient(135deg, #000, #000 0.75vw, #d00 0, #d00 1vw);
+}
+
+.joystick.de-prioritized {
+    background: repeating-linear-gradient(135deg, #000, #000 0.75vw, #dd0 0, #dd0 1vw);
+}
+
 .joystick-x {
     position: absolute;
     left: 50%;
@@ -34,6 +42,23 @@ body {
     left: 0;
     right: 0;
     background-color: #fff;
+}
+
+.override .joystick-x,
+.override .joystick-y {
+    background-color: #d00;
+}
+
+.priority .joystick-x,
+.priority .joystick-y {
+    background-color: #0d0;
+}
+
+.overridden .joystick-x,
+.overridden .joystick-y,
+.de-prioritized .joystick-x,
+.de-prioritized .joystick-y {
+    display: none;
 }
 
 div {
@@ -73,13 +98,13 @@ div {
     bottom: 44vh;
     display: grid;
     grid-template-rows: repeat(5, 1fr);
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(7, 1fr);
     grid-template-areas:
-        "b bv bv ba ba"
-        "c c1 c2 c3 c4"
-        "d dl dl dr dr"
-        "ap ax aj2 aj3 ."
-        "ae aex aey aez .";
+        "b bv bv bv ea ea ea"
+        "c c1 c1 c2 c2 c3 c3"
+        "d dl dl dl dr dr dr"
+        "ap ax ax aj2 aj2 aj3 aj3"
+        "ae aex aex aey aey aez aez";
 }
 
 #telemetry>div>div:nth-child(1) {
@@ -95,7 +120,7 @@ div {
 
 #telemetry>p {
     margin: 0;
-    font-size: 5vh;
+    font-size: 2vw;
     text-align: center;
     align-self: center;
 }
@@ -108,15 +133,17 @@ div {
     height: 35vh;
     margin: 0;
     display: grid;
-    grid-template-rows: repeat(2, 1fr);
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 2fr 2fr;
+    grid-template-columns: repeat(4, 1fr);
     grid-template-areas:
-        "l on off"
-        "d u o";
+        "s s s s"
+        "on off l o"
+        "d u i ss";
     place-items: center;
     gap: 4px;
     padding: 4px;
     background-color: #fff;
+    font-size: 2vw;
 }
 
 #controls>* {
@@ -125,19 +152,83 @@ div {
     height: 100%;
 }
 
-.override {
-    user-select: none;
+#controls>button {
+    color: #fff;
+    border: none;
+    font-size: 5vh;
+    font-family: 'B612 Mono', 'Courier New', Courier, monospace;
 }
 
-#full-screen {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 10vh;
-    height: 10vh;
+#speed {
+    grid-area: s;
+    appearance: none;
+    margin: 0;
+    width: 100%;
 }
 
-select {
+#speed:disabled {
+    background: repeating-linear-gradient(135deg, #000, #000 0.75vw, #888 0, #888 1vw);
+}
+
+#speed::-webkit-slider-runnable-track,
+#speed::-moz-range-track {
+    width: 100%;
+    height: 10%;
+    cursor: pointer;
+    box-shadow: none;
+    background: #fff;
+    border: none;
+    border-radius: 0;
+}
+
+#speed::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    margin-top: -2%;
+}
+
+#speed::-webkit-slider-thumb,
+#speed::-moz-range-thumb {
+    box-shadow: none;
+    border: none;
+    height: 75%;
+    width: 2%;
+    border-radius: 0;
+    background: #fff;
+    cursor: pointer;
+}
+
+#on {
+    grid-area: on;
+}
+
+#off {
+    grid-area: off;
+}
+
+#lock {
+    grid-area: l;
+}
+
+#override {
+    grid-area: o;
+    justify-self: center;
+    background: #800;
+}
+
+#override.active {
+    background: #d00;
+}
+
+#override:disabled {
+    background: repeating-linear-gradient(135deg, #800, #800 0.75vw, #888 0, #888 1vw);
+}
+
+#override:disabled.active {
+    background: repeating-linear-gradient(135deg, #d00, #d00 0.75vw, #888 0, #888 1vw);
+}
+
+#display {
+    grid-area: d;
     box-sizing: border-box;
     border: none;
     background-color: #000000;
@@ -161,6 +252,19 @@ select {
     position: absolute;
     z-index: 1;
     margin: 0;
-    font-size: 5vh;
     text-align: center;
+}
+
+#ik {
+    grid-area: i;
+}
+
+#setSpeed {
+    grid-area: ss;
+    background-color: #000;
+}
+
+#setSpeed:disabled {
+    grid-area: ss;
+    background: repeating-linear-gradient(135deg, #000, #000 0.75vw, #888 0, #888 1vw);
 }
