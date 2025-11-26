@@ -4,9 +4,19 @@
 #include <esp_attr.h>
 #include <stdint.h>
 
+#define PIN_TFT_MISO 12
+#define PIN_TFT_MOSI 15
+#define PIN_TFT_CLK 14
+#define PIN_TFT_CS 16
+#define PIN_TFT_DC 17
+#define PIN_TFT_RST 13
+#define PIN_TFT_BCKL 18
+#define LCD_BK_LIGHT_ON_LEVEL 1
+
+#define LCD_HOST SPI2_HOST
+
 #define LCD_WIDTH 320
 #define LCD_HEIGHT 240
-
 // To speed up transfers, every SPI transfer sends a bunch of lines. This define
 // specifies how many. More means more memory use, but less overhead for setting
 // up / finishing transfers. Make sure 240 is dividable by this.

@@ -11,19 +11,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LCD_HOST SPI2_HOST
-
-#define PIN_NUM_MISO 12
-#define PIN_NUM_MOSI 15
-#define PIN_NUM_CLK 14
-#define PIN_NUM_CS 16
-
-#define PIN_NUM_DC 17
-#define PIN_NUM_RST 13
-#define PIN_NUM_BCKL 18
-
-#define LCD_BK_LIGHT_ON_LEVEL 1
-
 /*
  The LCD needs a bunch of command/argument values to be initialized. They are
  stored in this struct.
@@ -155,7 +142,7 @@ void lcd_data(spi_device_handle_t spi, const uint8_t *data, int len) {
 // It will set the D/C line to the value indicated in the user field.
 void lcd_spi_pre_transfer_callback(spi_transaction_t *t) {
   int dc = (int)t->user;
-  gpio_set_level(PIN_NUM_DC, dc);
+  gpio_set_level(PIN_TFT_DC, dc);
 }
 
 uint32_t lcd_get_id(spi_device_handle_t spi) {
@@ -187,15 +174,15 @@ void lcd_init(spi_device_handle_t spi) {
   // Initialize non-SPI GPIOs
   gpio_config_t ioConf = {};
   ioConf.pin_bit_mask =
-      ((1ULL << PIN_NUM_DC) | (1ULL << PIN_NUM_RST) | (1ULL << PIN_NUM_BCKL));
+      ((1ULL << PIN_TFT_DC) | (1ULL << PIN_TFT_RST) | (1ULL << PIN_TFT_BCKL));
   ioConf.mode = GPIO_MODE_OUTPUT;
   ioConf.pull_up_en = GPIO_PULLUP_ENABLE;
   gpio_config(&ioConf);
 
   // Reset the display
-  gpio_set_level(PIN_NUM_RST, 0);
+  gpio_set_level(PIN_TFT_RST, 0);
   vTaskDelay(100 / portTICK_PERIOD_MS);
-  gpio_set_level(PIN_NUM_RST, 1);
+  gpio_set_level(PIN_TFT_RST, 1);
   vTaskDelay(100 / portTICK_PERIOD_MS);
 
   // Send all the commands
@@ -210,7 +197,7 @@ void lcd_init(spi_device_handle_t spi) {
   }
 
   /// Enable backlight
-  gpio_set_level(PIN_NUM_BCKL, LCD_BK_LIGHT_ON_LEVEL);
+  gpio_set_level(PIN_TFT_BCKL, LCD_BK_LIGHT_ON_LEVEL);
 }
 
 /* To send a set of lines we have to send a command, 2 data bytes, another
@@ -291,16 +278,16 @@ spi_device_handle_t spi;
 void tft_init() {
   ESP_LOGI(TAG_TFT, "tft initializing");
   esp_err_t ret;
-  spi_bus_config_t buscfg = {.miso_io_num = PIN_NUM_MISO,
-                             .mosi_io_num = PIN_NUM_MOSI,
-                             .sclk_io_num = PIN_NUM_CLK,
+  spi_bus_config_t buscfg = {.miso_io_num = PIN_TFT_MISO,
+                             .mosi_io_num = PIN_TFT_MOSI,
+                             .sclk_io_num = PIN_TFT_CLK,
                              .quadwp_io_num = -1,
                              .quadhd_io_num = -1,
                              .max_transfer_sz = PARALLEL_LINES * 320 * 2 + 8};
   spi_device_interface_config_t devcfg = {
       .clock_speed_hz = 10 * 1000 * 1000, // Clock out at 10 MHz
       .mode = 0,                          // SPI mode 0
-      .spics_io_num = PIN_NUM_CS,         // CS pin
+      .spics_io_num = PIN_TFT_CS,         // CS pin
       .queue_size = 7, // We want to be able to queue 7 transactions at a time
       .pre_cb = lcd_spi_pre_transfer_callback, // Specify pre-transfer callback
                                                // to handle D/C line

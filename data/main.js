@@ -2,7 +2,8 @@ const JOYSTICK_CLIP_RANGE = 0.2;
 const GAMMA = 1.5;
 const JOINT_SPEED = 0.02; // range/s
 const IK_SPEED = 4; // mm/s
-const COMMAND_INTERVAL = 5; // s
+const ACTIVE_TIMEOUT = 1; // s to send drive and/or arm commands after their joysticks are released, must be at least 2 * COMMAND_INTERVAL
+const COMMAND_INTERVAL = 0.1; // s
 const LCD_WIDTH = 320;
 const LCD_HEIGHT = 240;
 
@@ -170,66 +171,10 @@ class Bar {
 window.onload = () => {
     const socket = new WebSocket(`ws://192.168.4.1/ws`);
     socket.binaryType = "arraybuffer";
-    socket.addEventListener("message", event => {
-        // telemetry {
-        //   float batteryVoltage;
-        //   float batteryCurrent;
-        //   float cell1;
-        //   float cell2;
-        //   float cell3;
-        //   float cell4;
-        //   int16_t l;
-        //   int16_t r;
-        //   uint16_t ax;
-        //   uint16_t j1;
-        //   uint16_t j2;
-        //   uint16_t j3;
-        //   uint16_t x;
-        //   uint16_t y;
-        //   uint16_t z;
-        // }
-        let data = new DataView(event.data);
-        telemetry.bv.update(data.getFloat32(0, false));
-        telemetry.ba.update(data.getFloat32(4, false));
-        telemetry.c1.update(data.getFloat32(8, false));
-        telemetry.c2.update(data.getFloat32(12, false));
-        telemetry.c3.update(data.getFloat32(16, false));
-        telemetry.c4.update(data.getFloat32(20, false));
-        telemetry.dl.update(Math.abs(data.getInt16(24, false) / 0x7000 * 100));
-        telemetry.dr.update(Math.abs(data.getInt16(26, false) / 0x7000 * 100));
-        let ax = data.getUint16(28, false) / 0x10000;
-        let aj1 = data.getUint16(30, false) / 0x10000;
-        let aj2 = data.getUint16(32, false) / 0x10000;
-        let aj3 = data.getUint16(34, false) / 0x10000;
-        let aex = data.getUint16(36, false);
-        let aey = data.getUint16(38, false);
-        let aez = data.getUint16(40, false);
-
-        telemetry.ax.update(ax * 100);
-        telemetry.aj1.update(aj1 * 100);
-        telemetry.aj2.update(aj2 * 100);
-        telemetry.aj3.update(aj3 * 100);
-        telemetry.aex.update(aex);
-        telemetry.aey.update(aey);
-        telemetry.aez.update(aez);
-
-        // Set the non-controlled target values from telemetry.
-        if (ik) {
-            targetAngles.x = ax;
-            targetAngles.j1 = j1;
-            targetAngles.j2 = j2;
-            targetAngles.j3 = j3;
-        } else {
-            targetIK.x = aex;
-            targetIK.y = aey;
-            targetIK.z = aez;
-        }
-    });
 
     let authorized = false;
     let targetAngles = {
         x: 0,
-        j1: 0,
         j2: 0,
         j3: 0
     };
@@ -240,6 +185,8 @@ window.onload = () => {
     };
     let ik = false;
     let lastTime = performance.now();
+    let driveActiveUntil = 0;
+    let armActiveUntil = 0;
     let override = false;
     let locked = true;
 
@@ -274,14 +221,18 @@ window.onload = () => {
     on.addEventListener("click", _ => {
         if (authorized && socket.readyState === WebSocket.OPEN) {
             const buffer = new ArrayBuffer(1);
-            new DataView(buffer).setUint8(0, 1);
+            const data = new DataView(buffer);
+            data.setUint8(0, 1, true);
+            data.setUint8(1, override, true);
             socket.send(buffer);
         }
     });
     off.addEventListener("click", _ => {
         if (socket.readyState === WebSocket.OPEN) {
             const buffer = new ArrayBuffer(1);
-            new DataView(buffer).setUint8(0, 0);
+            const data = new DataView(buffer);
+            data.setUint8(0, 0, true);
+            data.setUint8(1, override, true);
             socket.send(buffer);
         }
     });
@@ -295,8 +246,9 @@ window.onload = () => {
             if (socket.readyState === WebSocket.OPEN) {
                 const buffer = new ArrayBuffer(2);
                 const data = new DataView(buffer);
-                data.setUint8(0, 5);
-                data.setUint8(1, display.selectedIndex);
+                data.setUint8(0, 5, true);
+                data.setUint8(1, override, true);
+                data.setUint8(2, display.selectedIndex, true);
                 socket.send(buffer);
             }
         } else {
@@ -376,53 +328,56 @@ window.onload = () => {
         "dl": [0, 0, 100, 100, ["@% L", 3, 0]],
         "dr": [0, 0, 100, 100, ["@% R", 3, 0]],
         "ax": [0, 0, 100, 100, ["@% X", 3, 0]],
-        "aj1": [0, 0, 100, 100, ["@% J1", 3, 0]],
         "aj2": [0, 0, 100, 100, ["@% J2", 3, 0]],
         "aj3": [0, 0, 100, 100, ["@% J3", 3, 0]],
-        "aex": [0, 0, 500, 500, ["@mm X", 3, 0]],
-        "aey": [0, 0, 500, 500, ["@mm Y", 3, 0]],
-        "aez": [0, 0, 500, 500, ["@mm Z", 3, 0]],
+        "aex": [-500, -500, 500, 500, ["@mm X", 3, 0]],
+        "aey": [-500, -500, 500, 500, ["@mm Y", 3, 0]],
+        "aez": [-500, -500, 500, 500, ["@mm Z", 3, 0]],
     };
     Object.keys(telemetry).forEach(id => {
         telemetry[id] = new Bar(id, ...telemetry[id]);
     });
 
+    socket.addEventListener("message", event => {
+        let data = new DataView(event.data);
+        telemetry.bv.update(data.getFloat32(16, true));
+        telemetry.ba.update(data.getFloat32(20, true));
+        telemetry.c1.update(data.getFloat32(24, true));
+        telemetry.c2.update(data.getFloat32(28, true));
+        telemetry.c3.update(data.getFloat32(32, true));
+        telemetry.c4.update(data.getFloat32(36, true));
+        telemetry.dl.update(Math.abs(data.getInt16(40, true) / 0x7000 * 100));
+        telemetry.dr.update(Math.abs(data.getInt16(42, true) / 0x7000 * 100));
+        let ax = data.getUint16(44, true) / 0x10000;
+        let aj2 = data.getUint16(46, true) / 0x10000;
+        let aj3 = data.getUint16(48, true) / 0x10000;
+        let aex = data.getInt16(50, true);
+        let aey = data.getInt16(52, true);
+        let aez = data.getInt16(54, true);
+
+        telemetry.ax.update(ax * 100);
+        telemetry.aj2.update(aj2 * 100);
+        telemetry.aj3.update(aj3 * 100);
+        telemetry.aex.update(aex);
+        telemetry.aey.update(aey);
+        telemetry.aez.update(aez);
+
+        // Set the non-controlled target values from telemetry.
+        if (ik) {
+            targetAngles.x = ax;
+            targetAngles.j2 = j2;
+            targetAngles.j3 = j3;
+        } else {
+            targetIK.x = aex;
+            targetIK.y = aey;
+            targetIK.z = aez;
+        }
+    });
+
     setInterval(() => {
-        /*
-         *  // id: union
-         *  // 0: off
-         *  // 1: on
-         *  // 2: drive [bool override, i16 left, i16 right]
-         *  // 3: arm target angles [bool override, u16 x, u16 j1, u16 j2, u16 j3]
-         *  // 4: arm IK [bool override, u16 x, u16 y, u16 z]
-         *  typedef struct __attribute__((__packed__, scalar_storage_order("big-endian")))
-         *  command {
-         *  uint8_t id;
-         *  union {
-         *      struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-         *      bool override;
-         *      int16_t left;
-         *      int16_t right;
-         *      } drive;
-         *      struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-         *      bool override;
-         *      uint16_t x;
-         *      uint16_t j1;
-         *      uint16_t j2;
-         *      uint16_t j3;
-         *      } armAngles;
-         *      struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-         *      bool override;
-         *      uint16_t x;
-         *      uint16_t y;
-         *      uint16_t z;
-         *      } armIK;
-         *  };
-         *  } command;
-         */
-        let time = performance.now();
-        let deltaT = (time - lastTime) * 1000;
-        lastTime = time;
+        let now = performance.now();
+        let deltaT = (now - lastTime) * 1000;
+        lastTime = now;
 
         let driveSpeed = 1; // TODO: change max drive speed.
         let driveX = drive.x;
@@ -434,39 +389,42 @@ window.onload = () => {
         leftSpeed = clamp(leftSpeed, -1, 1, -driveSpeed, driveSpeed);
         rightSpeed = clamp(rightSpeed, -1, 1, -driveSpeed, driveSpeed);
 
-        let buffer = new ArrayBuffer(10);
+        let buffer = new ArrayBuffer(8);
         let data = new DataView(buffer);
-        data.setUint8(0, 2, false);
-        data.setUint8(1, override, false);
-        data.setInt16(2, leftSpeed * 0x7000, false);
-        data.setInt16(4, rightSpeed * 0x7000, false);
 
-        if (socket.readyState === WebSocket.OPEN) socket.send(buffer);
-
-        if (ik) {
-            targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 500);
-            targetAngles.j1 = clamp(targetAngles.j1 + armRight.y * IK_SPEED * deltaT, 0, 500);
-            targetAngles.j2 = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
-            targetAngles.j3 = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
-
-            data.setUint8(0, 4, false);
-            data.setUint8(1, override, false);
-            data.setUint16(2, targetIK.x, false);
-            data.setUint16(4, targetIK.y, false);
-            data.setUint16(6, targetIK.z, false);
-        } else {
-            targetAngles.x = clamp(targetAngles.x + armLeft.x * JOINT_SPEED * deltaT, 0, 1);
-            targetAngles.j1 = clamp(targetAngles.j1 + armLeft.y * JOINT_SPEED * deltaT, 0, 1);
-            targetAngles.j2 = clamp(targetAngles.j2 + armRight.x * JOINT_SPEED * deltaT, 0, 1);
-            targetAngles.j3 = clamp(targetAngles.j3 + armRight.y * JOINT_SPEED * deltaT, 0, 1);
-
-            data.setUint8(0, 3, false);
-            data.setUint8(1, override, false);
-            data.setUint16(2, targetAngles.x * 0x10000, false);
-            data.setUint16(4, targetAngles.j1 * 0x10000, false);
-            data.setUint16(6, targetAngles.j2 * 0x10000, false);
-            data.setUint16(8, targetAngles.j3 * 0x10000, false);
+        if (drive.active) driveActiveUntil = now + ACTIVE_TIMEOUT * 1000;
+        if (socket.readyState === WebSocket.OPEN && driveActiveUntil > now) {
+            data.setUint8(0, 2, true);
+            data.setUint8(1, override, true);
+            data.setInt16(2, leftSpeed * 0x7000, true);
+            data.setInt16(4, rightSpeed * 0x7000, true);
+            socket.send(buffer);
         }
-        if (socket.readyState === WebSocket.OPEN) socket.send(buffer);
+
+        if (armLeft.active || armRight.active) armActiveUntil = now + ACTIVE_TIMEOUT * 1000;
+        if (socket.readyState === WebSocket.OPEN && armActiveUntil > now) {
+            if (ik) {
+                targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 500);
+                targetAngles.j2 = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
+                targetAngles.j3 = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
+
+                data.setUint8(0, 4, true);
+                data.setUint8(1, override, true);
+                data.setInt16(2, targetIK.x, true);
+                data.setInt16(4, targetIK.y, true);
+                data.setInt16(6, targetIK.z, true);
+            } else {
+                targetAngles.x = clamp(targetAngles.x + armLeft.x * JOINT_SPEED * deltaT, 0, 1);
+                targetAngles.j2 = clamp(targetAngles.j2 + armRight.x * JOINT_SPEED * deltaT, 0, 1);
+                targetAngles.j3 = clamp(targetAngles.j3 + armRight.y * JOINT_SPEED * deltaT, 0, 1);
+
+                data.setUint8(0, 3, true);
+                data.setUint8(1, override, true);
+                data.setUint16(2, targetAngles.x * 0x10000, true);
+                data.setUint16(4, targetAngles.j2 * 0x10000, true);
+                data.setUint16(6, targetAngles.j3 * 0x10000, true);
+            }
+            socket.send(buffer);
+        }
     }, COMMAND_INTERVAL * 1000);
 };

@@ -1,10 +1,32 @@
 #include "web.h"
+
+#include "hardware.h"
+#include "kinematics.h"
 #include "tft.h"
 #include <esp_check.h>
 #include <esp_err.h>
 #include <esp_http_server.h>
 #include <esp_log.h>
+#include <esp_timer.h>
+#include <socket.h>
 #include <string.h>
+
+typedef struct web_state {
+  bool off;
+  int16_t left;
+  int16_t right;
+  uint16_t x;
+  uint16_t j2;
+  uint16_t j3;
+  int32_t drive_priority_fd;
+  int64_t drive_priority_until;
+  int32_t arm_priority_fd;
+  int64_t arm_priority_until;
+  int32_t override_fd;
+  int64_t overriden_until;
+} web_state;
+
+static web_state webState = {0};
 
 DMA_ATTR uint16_t pixels[PIXELS_LENGTH];
 static esp_err_t display_handler(httpd_req_t *req) {
@@ -95,85 +117,124 @@ static const httpd_uri_t rootConfig = {.uri = "/?*",
                                        .handler = root_handler,
                                        .user_ctx = NULL};
 
+// Update override state and return true if command accepted.
+static bool handle_override(int32_t fd, bool override, int32_t *overrideFD,
+                            int64_t *overriddenUntil, int64_t now) {
+  if (override) {
+    // Received override command, renew override and accept command.
+    *overrideFD = fd;
+    *overriddenUntil = now + OVERRIDE_TIMEOUT;
+    return true;
+  }
+  if (fd == *overrideFD) {
+    // overrideFD is no longer overriding.
+    *overriddenUntil = 0;
+  }
+  if (now < *overriddenUntil) {
+    // Override active, ignore non-override command.
+    return false;
+  }
+  // Override inactive, accept command.
+  return true;
+}
+
+// Update priority state and return true if command accepted.
+static bool handle_priority(int32_t fd, int32_t *priorityFD,
+                            int64_t *priorityUntil, int64_t now) {
+  if (now < *priorityUntil) {
+    // Priority active.
+    if (fd == *priorityFD) {
+      // Recieved command from proprityFD, renew priority and accept command.
+      *priorityUntil = now + PRIORITY_TIMEOUT;
+      return true;
+    }
+    // fd does not have priority while another does, ignore command.
+    return false;
+  }
+  // Priority inactive, assign priority to fd and accept command.
+  *priorityFD = fd;
+  *priorityUntil = now + PRIORITY_TIMEOUT;
+  return true;
+}
+
 // id: union
 // 0: off
 // 1: on
-// 2: drive [bool override, i16 left, i16 right]
-// 3: arm target angles [bool override, u16 x, u16 j1, u16 j2, u16 j3]
-// 4: arm IK [bool override, u16 x, u16 y, u16 z]
+// 2: drive [i16 left, i16 right]
+// 3: arm target angles [u16 x, u16 j1, u16 j2, u16 j3]
+// 4: arm IK [u16 x, u16 y, u16 z]
 // 5: display image [u8 idx]
-typedef struct __attribute__((__packed__, scalar_storage_order("big-endian")))
-command {
-  uint8_t id;
+typedef struct __attribute__((__packed__)) command {
+  uint8_t id;    // 0
+  bool override; // 1
   union {
-    struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-      bool override;
-      int16_t left;
-      int16_t right;
+    struct __attribute__((__packed__)) {
+      int16_t left;  // 2
+      int16_t right; // 4
     } drive;
-    struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-      bool override;
-      uint16_t x;
-      uint16_t j1;
-      uint16_t j2;
-      uint16_t j3;
+    struct __attribute__((__packed__)) {
+      uint16_t x;  // 2
+      uint16_t j2; // 4
+      uint16_t j3; // 6
     } arm_angles;
-    struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-      bool override;
-      uint16_t x;
-      uint16_t y;
-      uint16_t z;
-    } arm_IK;
-    struct __attribute__((__packed__, scalar_storage_order("big-endian"))) {
-      uint8_t idx;
+    struct __attribute__((__packed__)) {
+      uint16_t x; // 2
+      uint16_t y; // 4
+      uint16_t z; // 6
+    } arm_ik;
+    struct __attribute__((__packed__)) {
+      uint8_t idx; // 2
     } display;
   };
-} command;
+} command; // 8 bytes
 
-typedef struct __attribute__((__packed__, scalar_storage_order("big-endian")))
-telemetry {
-  float battery_voltage;
-  float battery_current;
-  float cell1;
-  float cell2;
-  float cell3;
-  float cell4;
-  int16_t l;
-  int16_t r;
-  uint16_t ax;
-  uint16_t j1;
-  uint16_t j2;
-  uint16_t j3;
-  uint16_t x;
-  uint16_t y;
-  uint16_t z;
-} telemetry;
+typedef struct __attribute__((__packed__)) telemetry {
+  int32_t fd;                // 0
+  int32_t drive_priority_fd; // 4
+  int32_t arm_priority_fd;   // 8
+  int32_t override_fd;       // 12
+  float battery_voltage;     // 16
+  float battery_current;     // 20
+  float cell1;               // 24
+  float cell2;               // 28
+  float cell3;               // 32
+  float cell4;               // 36
+  int16_t l;                 // 40
+  int16_t r;                 // 42
+  uint16_t ax;               // 44
+  uint16_t j2;               // 46
+  uint16_t j3;               // 48
+  int16_t x;                 // 50
+  int16_t y;                 // 52
+  int16_t z;                 // 54
+} telemetry;                 // 56 bytes
 
 static esp_err_t websocket_handler(httpd_req_t *req) {
   httpd_ws_frame_t pkt = {0};
   command rxData = {0};
-  telemetry txData;
   esp_err_t ret;
 
+  int32_t fd = httpd_req_to_sockfd(req);
+  char tag[20];
+  snprintf(tag, sizeof(tag), "%s fd%ld", TAG_WEB, fd);
+
   if (req->method == HTTP_GET) {
-    ESP_LOGI(TAG_WEB, "Handshake done, the new connection was opened");
+    ESP_LOGI(tag, "Handshake done, the new connection was opened");
     return ESP_OK;
   }
 
+  ESP_LOGI(tag, "recv_frame0");
   pkt.payload = (uint8_t *)&rxData;
   ret = httpd_ws_recv_frame(req, &pkt, 0);
-  ESP_LOGI(TAG_WEB, "rx length %d", pkt.len);
+  ESP_LOGI(tag, "rx length %d", pkt.len);
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG_WEB, "httpd_ws_recv_frame failed with %d", ret);
+    ESP_LOGE(tag, "httpd_ws_recv_frame failed with %d", ret);
     return ret;
   }
+  ESP_LOGI(tag, "recv_frame1");
   ret = httpd_ws_recv_frame(req, &pkt, sizeof(command));
-  for (size_t i = 0; i < sizeof(command); i++) {
-    printf("%02x ", pkt.payload[i]);
-  }
-  printf("\n");
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG_WEB, "httpd_ws_recv_frame failed with %d", ret);
+    ESP_LOGE(tag, "httpd_ws_recv_frame failed with %d", ret);
     return ret;
   }
 
@@ -183,69 +244,71 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
   // 2: drive [bool override, i16 left, i16 right]
   // 3: arm angles [u16 x, u16 j1, u16 j2, u16 j3]
   // 4: arm IK [u16 x, u16 y, u16 z]
-  ESP_LOGI(TAG_WEB, "Command id: %d", rxData.id);
+  int64_t now = esp_timer_get_time();
+  bool accept_based_on_override =
+      handle_override(fd, rxData.override, &webState.override_fd,
+                      &webState.overriden_until, now);
+
   switch (rxData.id) {
   case 0:
-    ESP_LOGI(TAG_WEB, "Command OFF");
+    ESP_LOGI(tag, "Command OFF override: %s", rxData.override);
+    if (accept_based_on_override)
+      webState.off = true;
     break;
   case 1:
-    ESP_LOGI(TAG_WEB, "Command ON");
+    ESP_LOGI(tag, "Command ON override: %s", rxData.override);
+    if (accept_based_on_override)
+      webState.off = false;
     break;
   case 2:
-    ESP_LOGI(TAG_WEB, "Command DRIVE override: %s, left: %d, right: %d",
-             rxData.drive.override ? "true" : "false", rxData.drive.left,
+    ESP_LOGI(tag, "Command DRIVE override: %s, left: %d, right: %d",
+             rxData.override ? "true" : "false", rxData.drive.left,
              rxData.drive.right);
+    // Update priority only if override inactive.
+    if (accept_based_on_override &&
+        (rxData.override ||
+         handle_priority(fd, &webState.drive_priority_fd,
+                         &webState.drive_priority_until, now))) {
+      webState.left = rxData.drive.left;
+      webState.right = rxData.drive.right;
+    }
     break;
   case 3:
-    ESP_LOGI(TAG_WEB,
-             "Command ANGLES override: %s, x: %d, j1: %d, j2: %d, j3: %d",
-             rxData.arm_angles.override ? "true" : "false", rxData.arm_angles.x,
-             rxData.arm_angles.j1, rxData.arm_angles.j2, rxData.arm_angles.j3);
+    ESP_LOGI(tag, "Command ANGLES override: %s, x: %d j2: %d, j3: %d",
+             rxData.override ? "true" : "false", rxData.arm_angles.x,
+             rxData.arm_angles.j2, rxData.arm_angles.j3);
+    // Update priority only if override inactive.
+    if (accept_based_on_override &&
+        (rxData.override ||
+         handle_priority(fd, &webState.arm_priority_fd,
+                         &webState.arm_priority_until, now))) {
+      webState.x = rxData.arm_angles.x;
+      webState.j2 = rxData.arm_angles.j3;
+      webState.j3 = rxData.arm_angles.j3;
+    }
     break;
   case 4:
-    ESP_LOGI(TAG_WEB, "Command IK override: %s, x: %d, y: %d, z: %d",
-             rxData.arm_IK.override ? "true" : "false", rxData.arm_IK.x,
-             rxData.arm_IK.y, rxData.arm_IK.z);
+    ESP_LOGI(tag, "Command IK override: %s, x: %d, y: %d, z: %d",
+             rxData.override ? "true" : "false", rxData.arm_ik.x,
+             rxData.arm_ik.y, rxData.arm_ik.z);
+    // Update priority only if override inactive.
+    if (accept_based_on_override &&
+        (rxData.override ||
+         handle_priority(fd, &webState.arm_priority_fd,
+                         &webState.arm_priority_until, now))) {
+      ik_calculate_angles(rxData.arm_ik.x, rxData.arm_ik.y, rxData.arm_ik.z,
+                          &webState.x, &webState.j2, &webState.j3);
+    }
     break;
   case 5:
-    ESP_LOGI(TAG_WEB, "Command DISPLAY idx: %d", rxData.display.idx);
-    tft_draw_image(rxData.display.idx, pixels);
+    ESP_LOGI(tag, "Command DISPLAY override: %s, idx: %d",
+             rxData.override ? "true" : "false", rxData.display.idx);
+    if (accept_based_on_override)
+      tft_draw_image(rxData.display.idx, pixels);
     break;
   }
 
-  txData.battery_voltage = 12.3;
-  txData.battery_current = 10.1;
-  txData.cell1 = 1.1;
-  txData.cell2 = 1.2;
-  txData.cell3 = 2.1;
-  txData.cell4 = 2.2;
-  txData.l = -0.5 * 0x7000;
-  txData.r = 0.63 * 0x7000;
-  txData.ax = 0.12 * 0x10000;
-  txData.j1 = 0.34 * 0x10000;
-  txData.j2 = 0.56 * 0x10000;
-  txData.j3 = 0.78 * 0x10000;
-  txData.x = 128;
-  txData.y = 452;
-  txData.z = 321;
-
-  pkt.fragmented = false;
-  pkt.type = HTTPD_WS_TYPE_BINARY;
-  pkt.payload = (uint8_t *)&txData;
-  pkt.len = sizeof(telemetry);
-  ESP_LOGI(TAG_WEB, "tx length %d", pkt.len);
-  for (size_t i = 0; i < pkt.len; i++) {
-    printf("%02x ", pkt.payload[i]);
-  }
-  printf("\n");
-
-  ret = httpd_ws_send_frame(req, &pkt);
-  pkt.payload = NULL;
-  if (ret != ESP_OK) {
-    ESP_LOGE(TAG_WEB, "httpd_ws_send_frame failed with %d", ret);
-    return ret;
-  }
-
+  ESP_LOGI(tag, "Done");
   return ESP_OK;
 }
 
@@ -255,22 +318,100 @@ static const httpd_uri_t websocketConfig = {.uri = "/ws",
                                             .user_ctx = NULL,
                                             .is_websocket = true};
 
-httpd_handle_t start_webserver(void) {
+static telemetry txData = {0};
+void send_telemetry(httpd_handle_t server) {
+  httpd_ws_frame_t pkt = {
+      .final = false,
+      .fragmented = false,
+      .type = HTTPD_WS_TYPE_BINARY,
+      .payload = (uint8_t *)&txData,
+      .len = sizeof(telemetry),
+  };
+
+  int fds[CONFIG_LWIP_MAX_LISTENING_TCP] = {0};
+  size_t fdCount;
+  char tag[20];
+  if (httpd_get_client_list(server, &fdCount, fds) == ESP_OK) {
+    for (size_t i = 0; i < fdCount; i++) {
+      if (httpd_ws_get_fd_info(server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
+        snprintf(tag, sizeof(tag), "%s fd%d", TAG_WEB, fds[i]);
+        ESP_LOGI(tag, "Sending telemetry.");
+        txData.fd = fds[i];
+        httpd_ws_send_frame_async(server, fds[i], &pkt);
+      }
+    }
+  }
+}
+
+void webserver() {
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.backlog_conn = 10;
   config.uri_match_fn = httpd_uri_match_wildcard;
 
-  // Start the httpd server
   ESP_LOGI(TAG_WEB, "Starting webserver on port %d.", config.server_port);
   if (httpd_start(&server, &config) == ESP_OK) {
-    // Registering the ws handler
     ESP_LOGI(TAG_WEB, "Registering URI handlers.");
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &websocketConfig));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &displayConfig));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &rootConfig));
-    return server;
+
+    // Send telemetry every 100ms.
+    while (server != NULL) {
+      int64_t now = esp_timer_get_time();
+      // Send file descriptor(s) with priority and override unless they are
+      // expired.
+      txData.drive_priority_fd = now <= webState.drive_priority_until
+                                     ? webState.drive_priority_fd
+                                     : -1;
+      txData.arm_priority_fd =
+          now <= webState.arm_priority_until ? webState.arm_priority_fd : -1;
+      txData.override_fd =
+          now <= webState.overriden_until ? webState.override_fd : -1;
+      txData.battery_voltage = 12.3;
+
+      // Needed because txData is packed and pointers may be unaligned.
+      float batteryCurrent, cell1, cell2, cell3;
+      current_sense_get(&batteryCurrent, &cell1, &cell2, &cell3);
+      txData.battery_current = batteryCurrent;
+      txData.cell1 = cell1;
+      txData.cell2 = cell2;
+      txData.cell3 = cell3;
+      txData.cell4 = 2.2;
+
+      txData.l = webState.left;
+      txData.r = webState.right;
+      txData.ax = webState.x;
+      txData.j2 = webState.j2;
+      txData.j3 = webState.j3;
+
+      // Needed because txData is packed and pointers may be unaligned.
+      int16_t x, y, z;
+      fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y, &z);
+      txData.x = x;
+      txData.y = y;
+      txData.z = z;
+
+      bool estop = estop_get();
+      bool pms_stop = false; // TODO: set based on cell_sense_get
+      buzzer_set(pms_stop);
+      if (estop || pms_stop) {
+        esc_enabled_set(false);
+        motor_control_set(0, 0, 0, 0, 0);
+      } else {
+        esc_enabled_set(true);
+        motor_control_set(webState.left, webState.right, webState.x,
+                          webState.j2, webState.j3);
+      }
+
+      httpd_queue_work(server, send_telemetry, server);
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    ESP_LOGE(TAG_WEB, "Main loop exited!");
+  } else {
+    ESP_LOGE(TAG_WEB, "Error starting server!");
   }
 
-  ESP_LOGI(TAG_WEB, "Error starting server!");
-  return NULL;
+  while (1) {
+  }
 }

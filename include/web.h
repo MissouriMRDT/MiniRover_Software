@@ -6,6 +6,11 @@
 
 static const char *TAG_WEB = "web.c";
 
+// Duration in us of override
+#define OVERRIDE_TIMEOUT 5000000
+// Duration in us of priority
+#define PRIORITY_TIMEOUT 5000000
+
 #define SEND_CHUNK_SIZE 8192
 
 extern const char FILE_FONT_START[] asm("_binary_B612Mono_woff2_start");
@@ -21,5 +26,5 @@ extern const char FILE_CSS_END[] asm("_binary_style_css_end");
 
 extern uint16_t pixels[PIXELS_LENGTH];
 
-httpd_handle_t start_webserver(void);
+void webserver();
 #endif
