@@ -11,7 +11,8 @@
 #include <socket.h>
 #include <string.h>
 
-typedef struct web_state {
+typedef struct web_state
+{
   bool off;
   int16_t left;
   int16_t right;
@@ -44,7 +45,8 @@ static web_state webState = {
 };
 
 DMA_ATTR uint16_t pixels[PIXELS_LENGTH];
-static esp_err_t display_handler(httpd_req_t *req) {
+static esp_err_t display_handler(httpd_req_t *req)
+{
   ESP_LOGI(TAG_WEB, "/upload %i", req->content_len);
   if (req->content_len > LCD_WIDTH * LCD_HEIGHT * 2)
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File too large.");
@@ -52,18 +54,21 @@ static esp_err_t display_handler(httpd_req_t *req) {
   size_t remainingBytes = req->content_len;
   int receivedBytes;
   uint8_t part = 0;
-  while (remainingBytes > 0) {
+  while (remainingBytes > 0)
+  {
     size_t bytesInPart = PIXELS_BYTES - (remainingBytes % PIXELS_BYTES);
     size_t pixelOffset = 0;
     ESP_LOGI(TAG_WEB, "Remaining bytes: %zu, bytes in part: %zu",
              remainingBytes, bytesInPart);
-    while (pixelOffset < bytesInPart) {
+    while (pixelOffset < bytesInPart)
+    {
       ESP_LOGI(TAG_WEB,
                "Remaining bytes: %zu, reading %zu bytes into pixels + %zu",
                remainingBytes, bytesInPart - pixelOffset, pixelOffset);
       receivedBytes = httpd_req_recv(req, (char *)&pixels + pixelOffset,
                                      bytesInPart - pixelOffset);
-      if (receivedBytes <= 0) {
+      if (receivedBytes <= 0)
+      {
         if (receivedBytes == HTTPD_SOCK_ERR_TIMEOUT)
           continue; // Retry read
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
@@ -88,38 +93,51 @@ httpd_uri_t displayConfig = {
     .user_ctx = NULL,
 };
 
-static esp_err_t root_handler(httpd_req_t *req) {
+static esp_err_t root_handler(httpd_req_t *req)
+{
   ESP_LOGI(TAG_WEB, "Request %s", req->uri);
 
   const char *fileStart = NULL;
   const char *fileEnd = NULL;
-  if (strcmp(req->uri, "/") == 0 || strcmp(req->uri, "/index.html") == 0) {
+  if (strcmp(req->uri, "/") == 0 || strcmp(req->uri, "/index.html") == 0)
+  {
     fileStart = FILE_HTML_START;
     fileEnd = FILE_HTML_END;
     httpd_resp_set_type(req, "text/html");
-  } else if (strcmp(req->uri, "/B612Mono.woff2") == 0) {
+  }
+  else if (strcmp(req->uri, "/B612Mono.woff2") == 0)
+  {
     fileStart = FILE_FONT_START;
     fileEnd = FILE_FONT_END;
     httpd_resp_set_type(req, "font/woff2");
-  } else if (strcmp(req->uri, "/images.js") == 0) {
+  }
+  else if (strcmp(req->uri, "/images.js") == 0)
+  {
     fileStart = FILE_IMAGE_JS_START;
     fileEnd = FILE_IMAGE_JS_END;
     httpd_resp_set_type(req, "text/javascript");
-  } else if (strcmp(req->uri, "/main.js") == 0) {
+  }
+  else if (strcmp(req->uri, "/main.js") == 0)
+  {
     fileStart = FILE_JS_START;
     fileEnd = FILE_JS_END;
     httpd_resp_set_type(req, "text/javascript");
-  } else if (strcmp(req->uri, "/style.css") == 0) {
+  }
+  else if (strcmp(req->uri, "/style.css") == 0)
+  {
     fileStart = FILE_CSS_START;
     fileEnd = FILE_CSS_END;
     httpd_resp_set_type(req, "text/css");
-  } else {
+  }
+  else
+  {
     ESP_LOGE(TAG_WEB, "Failed to find %s", req->uri);
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "File does not exist");
     return ESP_FAIL;
   }
 
-  if (httpd_resp_send(req, fileStart, fileEnd - fileStart) != ESP_OK) {
+  if (httpd_resp_send(req, fileStart, fileEnd - fileStart) != ESP_OK)
+  {
     ESP_LOGE(TAG_WEB, "File sending failed!");
     httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
                         "Failed to send file");
@@ -138,18 +156,22 @@ static const httpd_uri_t rootConfig = {
 
 // Update override state and return true if command accepted.
 static bool handle_override(int32_t fd, bool override, int32_t *overrideFD,
-                            int64_t *overriddenUntil, int64_t now) {
-  if (override) {
+                            int64_t *overriddenUntil, int64_t now)
+{
+  if (override)
+  {
     // Received override command, renew override and accept command.
     *overrideFD = fd;
     *overriddenUntil = now + OVERRIDE_TIMEOUT;
     return true;
   }
-  if (fd == *overrideFD) {
+  if (fd == *overrideFD)
+  {
     // overrideFD is no longer overriding.
     *overriddenUntil = 0;
   }
-  if (now < *overriddenUntil) {
+  if (now < *overriddenUntil)
+  {
     // Override active, ignore non-override command.
     return false;
   }
@@ -159,10 +181,13 @@ static bool handle_override(int32_t fd, bool override, int32_t *overrideFD,
 
 // Update priority state and return true if command accepted.
 static bool handle_priority(int32_t fd, int32_t *priorityFD,
-                            int64_t *priorityUntil, int64_t now) {
-  if (now < *priorityUntil) {
+                            int64_t *priorityUntil, int64_t now)
+{
+  if (now < *priorityUntil)
+  {
     // Priority active.
-    if (fd == *priorityFD) {
+    if (fd == *priorityFD)
+    {
       // Recieved command from proprityFD, renew priority and accept command.
       *priorityUntil = now + PRIORITY_TIMEOUT;
       return true;
@@ -184,34 +209,42 @@ static bool handle_priority(int32_t fd, int32_t *priorityFD,
 // 4: arm IK [u16 x, u16 y, u16 z]
 // 5: display image [u8 idx]
 // 6: drive speed [u16 speed]
-typedef struct __attribute__((__packed__)) command {
+typedef struct __attribute__((__packed__)) command
+{
   uint8_t id;    // 0
   bool override; // 1
-  union {
-    struct __attribute__((__packed__)) {
+  union
+  {
+    struct __attribute__((__packed__))
+    {
       int16_t left;  // 2
       int16_t right; // 4
     } drive;
-    struct __attribute__((__packed__)) {
+    struct __attribute__((__packed__))
+    {
       uint16_t x;  // 2
       uint16_t j2; // 4
       uint16_t j3; // 6
     } arm_angles;
-    struct __attribute__((__packed__)) {
+    struct __attribute__((__packed__))
+    {
       uint16_t x; // 2
       uint16_t y; // 4
       uint16_t z; // 6
     } arm_ik;
-    struct __attribute__((__packed__)) {
+    struct __attribute__((__packed__))
+    {
       uint8_t idx; // 2
     } display;
-    struct __attribute__((__packed__)) {
+    struct __attribute__((__packed__))
+    {
       uint16_t speed; // 2
     } drive_speed;
   };
 } command; // 8 bytes
 
-typedef struct __attribute__((__packed__)) telemetry {
+typedef struct __attribute__((__packed__)) telemetry
+{
   int32_t fd;                // 0
   int32_t drive_priority_fd; // 4
   int32_t arm_priority_fd;   // 8
@@ -231,7 +264,8 @@ typedef struct __attribute__((__packed__)) telemetry {
   uint16_t drive_speed;      // 48
 } telemetry;                 // 50 bytes
 
-static esp_err_t websocket_handler(httpd_req_t *req) {
+static esp_err_t websocket_handler(httpd_req_t *req)
+{
   httpd_ws_frame_t pkt = {0};
   command rxData = {0};
   esp_err_t ret;
@@ -240,19 +274,22 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
   char tag[20];
   snprintf(tag, sizeof(tag), "%s fd%ld", TAG_WEB, fd);
 
-  if (req->method == HTTP_GET) {
+  if (req->method == HTTP_GET)
+  {
     ESP_LOGI(tag, "Handshake done, the new connection was opened");
     return ESP_OK;
   }
 
   pkt.payload = (uint8_t *)&rxData;
   ret = httpd_ws_recv_frame(req, &pkt, 0);
-  if (ret != ESP_OK) {
+  if (ret != ESP_OK)
+  {
     ESP_LOGE(tag, "httpd_ws_recv_frame failed with %d", ret);
     return ret;
   }
   ret = httpd_ws_recv_frame(req, &pkt, sizeof(command));
-  if (ret != ESP_OK) {
+  if (ret != ESP_OK)
+  {
     ESP_LOGE(tag, "httpd_ws_recv_frame failed with %d", ret);
     return ret;
   }
@@ -268,7 +305,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
       handle_override(fd, rxData.override, &webState.override_fd,
                       &webState.overriden_until, now);
 
-  switch (rxData.id) {
+  switch (rxData.id)
+  {
   case 0:
     if (accept_based_on_override)
       webState.off = true;
@@ -282,7 +320,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
     if (accept_based_on_override &&
         (rxData.override ||
          handle_priority(fd, &webState.drive_priority_fd,
-                         &webState.drive_priority_until, now))) {
+                         &webState.drive_priority_until, now)))
+    {
       webState.left = rxData.drive.left;
       webState.right = rxData.drive.right;
     }
@@ -292,7 +331,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
     if (accept_based_on_override &&
         (rxData.override ||
          handle_priority(fd, &webState.arm_priority_fd,
-                         &webState.arm_priority_until, now))) {
+                         &webState.arm_priority_until, now)))
+    {
       webState.x = rxData.arm_angles.x;
       webState.j2 = rxData.arm_angles.j3;
       webState.j3 = rxData.arm_angles.j3;
@@ -303,7 +343,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
     if (accept_based_on_override &&
         (rxData.override ||
          handle_priority(fd, &webState.arm_priority_fd,
-                         &webState.arm_priority_until, now))) {
+                         &webState.arm_priority_until, now)))
+    {
       ik_calculate_angles(rxData.arm_ik.x, rxData.arm_ik.y, rxData.arm_ik.z,
                           &webState.x, &webState.j2, &webState.j3);
     }
@@ -328,7 +369,8 @@ static const httpd_uri_t websocketConfig = {
 };
 
 static telemetry txData = {0};
-void send_telemetry(httpd_handle_t server) {
+void send_telemetry(httpd_handle_t server)
+{
   httpd_ws_frame_t pkt = {
       .final = false,
       .fragmented = false,
@@ -340,9 +382,12 @@ void send_telemetry(httpd_handle_t server) {
   int fds[CONFIG_LWIP_MAX_LISTENING_TCP] = {0};
   size_t fdCount;
   char tag[20];
-  if (httpd_get_client_list(server, &fdCount, fds) == ESP_OK) {
-    for (size_t i = 0; i < fdCount; i++) {
-      if (httpd_ws_get_fd_info(server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) {
+  if (httpd_get_client_list(server, &fdCount, fds) == ESP_OK)
+  {
+    for (size_t i = 0; i < fdCount; i++)
+    {
+      if (httpd_ws_get_fd_info(server, fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET)
+      {
         snprintf(tag, sizeof(tag), "%s fd%d", TAG_WEB, fds[i]);
         txData.fd = fds[i];
         httpd_ws_send_frame_async(server, fds[i], &pkt);
@@ -351,21 +396,24 @@ void send_telemetry(httpd_handle_t server) {
   }
 }
 
-void webserver() {
+void webserver()
+{
   httpd_handle_t server = NULL;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.backlog_conn = 10;
   config.uri_match_fn = httpd_uri_match_wildcard;
 
   ESP_LOGI(TAG_WEB, "Starting webserver on port %d.", config.server_port);
-  if (httpd_start(&server, &config) == ESP_OK) {
+  if (httpd_start(&server, &config) == ESP_OK)
+  {
     ESP_LOGI(TAG_WEB, "Registering URI handlers.");
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &websocketConfig));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &displayConfig));
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &rootConfig));
 
     // Send telemetry every 100ms.
-    while (server != NULL) {
+    while (server != NULL)
+    {
       int64_t now = esp_timer_get_time();
       // Send file descriptor(s) with priority and override unless they are
       // expired.
@@ -401,12 +449,15 @@ void webserver() {
       txData.drive_speed = webState.drive_speed;
 
       bool estop = estop_get();
-      bool pms_stop = false; // TODO: set based on cell_sense_get
+      bool pms_stop = true; // TODO: set based on cell_sense_get
       buzzer_set(pms_stop);
-      if (estop || pms_stop) {
+      if (estop || pms_stop)
+      {
         esc_enabled_set(false);
         motor_control_set(0, 0, 0, 0, 0);
-      } else {
+      }
+      else
+      {
         esc_enabled_set(true);
         motor_control_set(webState.left, webState.right, webState.x,
                           webState.j2, webState.j3);
@@ -416,10 +467,13 @@ void webserver() {
       vTaskDelay(MAINLOOP_DELAY / portTICK_PERIOD_MS);
     }
     ESP_LOGE(TAG_WEB, "Main loop exited!");
-  } else {
+  }
+  else
+  {
     ESP_LOGE(TAG_WEB, "Error starting server!");
   }
 
-  while (1) {
+  while (1)
+  {
   }
 }
