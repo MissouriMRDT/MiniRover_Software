@@ -21,17 +21,7 @@ bool estop_get(void)
 void pins_init()
 {
   gpio_config_t GPIO_config = {
-      .pin_bit_mask = (1ULL << PIN_BUZZER) |
-                      (1ULL << PIN_ARM_PWM_X) |
-                      (1ULL << PIN_ARM_PWM_J2) |
-                      (1ULL << PIN_ARM_PWM_J3) |
-                      (1ULL << PIN_DRIVE_MID_LEFT_6) |
-                      (1ULL << PIN_DRIVE_MID_RIGHT_5) |
-                      (1ULL << PIN_DRIVE_FRONT_LEFT_4) |
-                      (1ULL << PIN_DRIVE_BACK_LEFT_3) |
-                      (1ULL << PIN_DRIVE_FRONT_RIGHT_2) |
-                      (1ULL << PIN_DRIVE_BACK_RIGHT_1) |
-                      (1ULL << PIN_CURRENT_ESC),
+      .pin_bit_mask = (1ULL << PIN_BUZZER),
       .mode = GPIO_MODE_OUTPUT,              /*!< GPIO mode: set input/output mode                     */
       .pull_up_en = GPIO_PULLUP_DISABLE,     /*!< GPIO pull-up                                         */
       .pull_down_en = GPIO_PULLDOWN_DISABLE, /*!< GPIO pull-down                                       */
@@ -114,14 +104,37 @@ void esc_enabled_set(bool enabled)
   }
 }
 
+void set_pwm(ledc_channel_t channel, uint32_t decipercent)
+{
+  // Map decipercent [0, 1000] to duty cycle [0, 2**resolution]
+  uint32_t duty;
+  duty = (decipercent * (1 << 8)) / 1000;
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
+  // take in channel and duty cycle(0-1000 deci%)
+  // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
+
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
+  // update
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
+}
+
+void set_fade(ledc_channel_t channel, uint32_t decipercent, uint32_t scale, uint32_t cycle_num)
+{
+  uint32_t duty_cycle;
+  duty_cycle = (decipercent * (1 << 8)) / 1000;
+  ledc_set_fade_with_step(LEDC_LOW_SPEED_MODE, channel, duty_cycle, scale, cycle_num);
+  ledc_fade_start(LEDC_LOW_SPEED_MODE, channel, LEDC_FADE_NO_WAIT);
+}
+
 void motor_control_init(void)
 {
   // TODO: Initialize timers and channels for every PWM output.
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
-      .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
+      .duty_resolution = 8,
       .timer_num = LEDC_TIMER_0,
-      .freq_hz = 4000, // Set output frequency at 4 kHz
+      .freq_hz = 600, // Set output frequency at 4 kHz
       .clk_cfg = LEDC_AUTO_CLK,
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
@@ -189,9 +202,16 @@ void motor_control_init(void)
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 }
 
-void motor_control_set(int16_t left, int16_t right, uint16_t x, uint16_t j2,
-                       uint16_t j3)
+void motor_control_set(int32_t left, int32_t right, uint32_t x, uint32_t j2,
+                       uint32_t j3)
 {
+  set_pwm(FRONT_RIGHT_WHEEL_CHNL, right);
+  // set_pwm(BACK_RIGHT_WHEEL_CHNL, right);
+  // set_pwm(MID_RIGHT_WHEEL_CHNL, right);
+  // set_pwm(FRONT_LEFT_WHEEL_CHNL, left);
+  // set_pwm(BACK_LEFT_WHEEL_CHNL, left);
+  // set_pwm(MID_LEFT_WHEEL_CHNL, left);
+
   // TODO: Set PWM duty cycles.
   // scale ledc_set_duty parameter 3 from [INT16_MIN, INT16_MAX] or
   // [0, UINT16_MAX] to [0, (1 << SOC_LEDC_TIMER_BIT_WIDTH) - 1]

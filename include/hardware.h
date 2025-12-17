@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "driver/ledc.h"
 
 // TODO: Update from schematic
 #define PIN_ESTOP 19
@@ -25,17 +26,28 @@
 #define PIN_CURRENT_CELL_2 2
 #define PIN_CURRENT_CELL_3 3
 
+#define BACK_RIGHT_WHEEL_CHNL LEDC_CHANNEL_1
+#define FRONT_RIGHT_WHEEL_CHNL LEDC_CHANNEL_2
+#define BACK_LEFT_WHEEL_CHNL LEDC_CHANNEL_3
+#define FRONT_LEFT_WHEEL_CHNL LEDC_CHANNEL_4
+#define MID_RIGHT_WHEEL_CHNL LEDC_CHANNEL_5
+#define MID_LEFT_WHEEL_CHNL LEDC_CHANNEL_6
+
 bool estop_get(void);
 
 void buzzer_set(bool on);
 
 void pins_init();
 
+void set_pwm(ledc_channel_t channel, uint32_t decipercent);
+
+void set_fade(ledc_channel_t channel, uint32_t target_duty, uint32_t scale, uint32_t cycle_num);
+
 void esc_enabled_set(bool enabled);
 
 void motor_control_init(void);
-void motor_control_set(int16_t left, int16_t right, uint16_t x, uint16_t j2,
-                       uint16_t j3);
+void motor_control_set(int32_t left, int32_t right, uint32_t x, uint32_t j2,
+                       uint32_t j3);
 
 void current_sense_get(float *esc, float *cell1, float *cell2, float *cell3);
 
