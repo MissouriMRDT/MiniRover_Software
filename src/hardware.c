@@ -5,6 +5,9 @@
 #include "freertos/FreeRTOS.h"
 #include "stdint.h"
 #include "esp_timer.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 bool estop_get(void)
 {
@@ -125,6 +128,48 @@ void set_fade(ledc_channel_t channel, uint32_t decipercent, uint32_t scale, uint
   duty_cycle = (decipercent * (1 << 8)) / 1000;
   ledc_set_fade_with_step(LEDC_LOW_SPEED_MODE, channel, duty_cycle, scale, cycle_num);
   ledc_fade_start(LEDC_LOW_SPEED_MODE, channel, LEDC_FADE_NO_WAIT);
+}
+
+void adc_init(void)
+{
+  adc_oneshot_unit_handle_t cell_sense_handle;
+  adc_oneshot_unit_init_cfg_t init_config = {
+      .unit_id = ADC_UNIT_1,
+      .ulp_mode = ADC_ULP_MODE_DISABLE,
+  };
+
+  adc_oneshot_new_unit(&init_config, &cell_sense_handle);
+
+  adc_oneshot_chan_cfg_t config = {
+      .bitwidth = ADC_BITWIDTH_DEFAULT,
+      .atten = ADC_ATTEN_DB_12,
+  };
+
+  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_0, &config);
+  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_1, &config);
+  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_2, &config);
+
+  // Find the raw value to then convert later
+  int raw_value_1;
+  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_1);
+  printf("ADC Raw Value: %d\n", raw_value_1);
+
+  int raw_value_2;
+  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_2);
+  printf("ADC Raw Value: %d\n", raw_value_2);
+
+  int raw_value_3;
+  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_3);
+  printf("ADC Raw Value: %d\n", raw_value_3);
+
+  // Convert to a voltage
+  // Vout = Dout * Vmax / Dmax
+  // Where Dout is the raw ADC value, Vmax is the maximum input voltage, and Dmax is 2^bitwidth.
+
+  // Find Cell voltage bitwidth
+
+  // Maximum of the output ADC raw digital reading result, which is 2^bitwidth,
+  // where bitwidth is the adc_oneshot_chan_cfg_t::bitwidth configured before.
 }
 
 void motor_control_init(void)
