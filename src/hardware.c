@@ -5,6 +5,13 @@
 #include "freertos/FreeRTOS.h"
 #include "stdint.h"
 #include "esp_timer.h"
+#include "vesc.h"
+#include "driver/uart.h"
+#include <string.h>
+#include <esp_log.h>
+#include "esp_adc/adc_oneshot.h"
+
+#define BUF_SIZE (1024)
 
 bool estop_get(void)
 {
@@ -22,9 +29,9 @@ void pins_init()
 {
   gpio_config_t GPIO_config = {
       .pin_bit_mask = (1ULL << PIN_BUZZER),
-      .mode = GPIO_MODE_OUTPUT,              /*!< GPIO mode: set input/output mode                     */
-      .pull_up_en = GPIO_PULLUP_DISABLE,     /*!< GPIO pull-up                                         */
-      .pull_down_en = GPIO_PULLDOWN_DISABLE, /*!< GPIO pull-down                                       */
+      .mode = GPIO_MODE_OUTPUT,
+      .pull_up_en = GPIO_PULLUP_DISABLE,
+      .pull_down_en = GPIO_PULLDOWN_DISABLE,
       .intr_type = GPIO_INTR_DISABLE,
   };
 
@@ -37,17 +44,17 @@ void pins_init()
                              (1ULL << PIN_ARM_ENCODER_X) |
                              (1ULL << PIN_ARM_ENCODER_J2) |
                              (1ULL << PIN_ARM_ENCODER_J3);
-  GPIO_config.mode = GPIO_MODE_INPUT;               /*!< GPIO mode: set input/output mode                     */
-  GPIO_config.pull_up_en = GPIO_PULLUP_DISABLE;     /*!< GPIO pull-up                                         */
-  GPIO_config.pull_down_en = GPIO_PULLDOWN_DISABLE; /*!< GPIO pull-down                                       */
+  GPIO_config.mode = GPIO_MODE_INPUT;
+  GPIO_config.pull_up_en = GPIO_PULLUP_DISABLE;
+  GPIO_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
   GPIO_config.intr_type = GPIO_INTR_DISABLE;
 
   gpio_config(&GPIO_config);
 
   GPIO_config.pin_bit_mask = (1ULL << PIN_ESTOP);
-  GPIO_config.mode = GPIO_MODE_INPUT;               /*!< GPIO mode: set input/output mode                     */
-  GPIO_config.pull_up_en = GPIO_PULLUP_ENABLE;      /*!< GPIO pull-up                                         */
-  GPIO_config.pull_down_en = GPIO_PULLDOWN_DISABLE; /*!< GPIO pull-down                                       */
+  GPIO_config.mode = GPIO_MODE_INPUT;
+  GPIO_config.pull_up_en = GPIO_PULLUP_ENABLE;
+  GPIO_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
   GPIO_config.intr_type = GPIO_INTR_DISABLE;
 
   gpio_config(&GPIO_config);
@@ -104,11 +111,11 @@ void esc_enabled_set(bool enabled)
   }
 }
 
-void set_pwm(ledc_channel_t channel, uint32_t decipercent)
+void set_pwm(ledc_channel_t channel, uint16_t decipercent)
 {
-  // Map decipercent [0, 1000] to duty cycle [0, 2**resolution]
+  // Map uint16 [0, uint16_MAX] to duty cycle [0, 2**resolution]
   uint32_t duty;
-  duty = (decipercent * (1 << 8)) / 1000;
+  duty = (decipercent * (1 << SOC_LEDC_TIMER_BIT_WIDTH)) / (UINT16_MAX);
   ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
   // take in channel and duty cycle(0-1000 deci%)
   // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
@@ -119,108 +126,218 @@ void set_pwm(ledc_channel_t channel, uint32_t decipercent)
   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
 }
 
-void set_fade(ledc_channel_t channel, uint32_t decipercent, uint32_t scale, uint32_t cycle_num)
+void set_pulse_width(ledc_channel_t channel, int16_t pulse_width)
 {
-  uint32_t duty_cycle;
-  duty_cycle = (decipercent * (1 << 8)) / 1000;
-  ledc_set_fade_with_step(LEDC_LOW_SPEED_MODE, channel, duty_cycle, scale, cycle_num);
+  // Map decipercent [0, 1000] to duty cycle [0, 2**resolution]
+  uint32_t duty;
+  duty = 1000 + (1000 * (pulse_width - INT16_MIN) / (INT16_MAX - INT16_MIN));
+  // duty = (pulse_width * (1 << 8)) / 1000;
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
+  // take in channel and duty cycle(0-1000 deci%)
+  // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
+
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
+  // update
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
+}
+
+void set_fade(ledc_mode_t speed_mode, ledc_channel_t channel, int16_t target_duty, int desired_fade_time_ms)
+{
+  uint32_t duty;
+  // duty_cycle = (target_duty * (1 << 8)) / 1000;
+  duty = 1000 + (1000 * (target_duty - INT16_MIN) / (INT16_MAX - INT16_MIN));
+
+  // make posotive
+  // make percent
+  // multiply by 1000
+  // add 1000
+
+  ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, channel, duty, desired_fade_time_ms);
   ledc_fade_start(LEDC_LOW_SPEED_MODE, channel, LEDC_FADE_NO_WAIT);
 }
 
 void motor_control_init(void)
 {
-  // TODO: Initialize timers and channels for every PWM output.
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
-      .duty_resolution = 8,
+      .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
       .timer_num = LEDC_TIMER_0,
-      .freq_hz = 600, // Set output frequency at 4 kHz
+      .freq_hz = 50,
       .clk_cfg = LEDC_AUTO_CLK,
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
-
   ledc_channel_config_t ledc_channel = {
+      .gpio_num = PIN_DRIVE_RIGHT_1,
       .speed_mode = LEDC_LOW_SPEED_MODE,
-      .channel = LEDC_CHANNEL_1,
-      .timer_sel = LEDC_TIMER_0,
+      .channel = LEDC_CHANNEL_0,
       .intr_type = LEDC_INTR_DISABLE,
-      .gpio_num = PIN_DRIVE_BACK_RIGHT_1,
-      .duty = 0, // Set duty to 0%
+      .timer_sel = LEDC_TIMER_0,
+      .duty = 0,
       .hpoint = 0,
+      .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
   };
-
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
   ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
-  ledc_channel.channel = LEDC_CHANNEL_2;
+  ledc_channel.channel = LEDC_CHANNEL_0;
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
-  ledc_channel.gpio_num = PIN_DRIVE_FRONT_RIGHT_2;
-  ledc_channel.duty = 0; // Set duty to 0%
+  ledc_channel.gpio_num = PIN_DRIVE_RIGHT_2;
+  ledc_channel.duty = 0;
   ledc_channel.hpoint = 0;
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
+  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  ledc_channel.channel = LEDC_CHANNEL_0;
+  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.intr_type = LEDC_INTR_DISABLE;
+  ledc_channel.gpio_num = PIN_DRIVE_RIGHT_3;
+  ledc_channel.duty = 0;
+  ledc_channel.hpoint = 0;
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  ledc_channel.channel = LEDC_CHANNEL_1;
+  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.intr_type = LEDC_INTR_DISABLE;
+  ledc_channel.gpio_num = PIN_DRIVE_LEFT_1;
+  ledc_channel.duty = 0;
+  ledc_channel.hpoint = 0;
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  ledc_channel.channel = LEDC_CHANNEL_1;
+  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.intr_type = LEDC_INTR_DISABLE;
+  ledc_channel.gpio_num = PIN_DRIVE_LEFT_2;
+  ledc_channel.duty = 0;
+  ledc_channel.hpoint = 0;
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
+  ledc_channel.channel = LEDC_CHANNEL_1;
+  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.intr_type = LEDC_INTR_DISABLE;
+  ledc_channel.gpio_num = PIN_DRIVE_LEFT_3;
+  ledc_channel.duty = 0;
+  ledc_channel.hpoint = 0;
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+}
+
+void servo_control_init(void)
+{
+  ledc_timer_config_t ledc_timer = {
+      .speed_mode = LEDC_LOW_SPEED_MODE,
+      .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
+      .timer_num = LEDC_TIMER_1,
+      .freq_hz = 50,
+      .clk_cfg = LEDC_AUTO_CLK,
+  };
+  ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+  ledc_channel_config_t ledc_channel = {
+      .gpio_num = PIN_ARM_PWM_X,
+      .speed_mode = LEDC_LOW_SPEED_MODE,
+      .channel = LEDC_CHANNEL_2,
+      .intr_type = LEDC_INTR_DISABLE,
+      .timer_sel = LEDC_TIMER_1,
+      .duty = 0,
+      .hpoint = 0,
+      .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+  };
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
   ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
   ledc_channel.channel = LEDC_CHANNEL_3;
-  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.timer_sel = LEDC_TIMER_1;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
-  ledc_channel.gpio_num = PIN_DRIVE_BACK_LEFT_3;
-  ledc_channel.duty = 0; // Set duty to 0%
+  ledc_channel.gpio_num = PIN_ARM_PWM_J2;
+  ledc_channel.duty = 0;
   ledc_channel.hpoint = 0;
-
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
   ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
   ledc_channel.channel = LEDC_CHANNEL_4;
-  ledc_channel.timer_sel = LEDC_TIMER_0;
+  ledc_channel.timer_sel = LEDC_TIMER_1;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
-  ledc_channel.gpio_num = PIN_DRIVE_FRONT_LEFT_4;
-  ledc_channel.duty = 0; // Set duty to 0%
+  ledc_channel.gpio_num = PIN_ARM_PWM_J3;
+  ledc_channel.duty = 0;
   ledc_channel.hpoint = 0;
-
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-
-  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
-  ledc_channel.channel = LEDC_CHANNEL_5;
-  ledc_channel.timer_sel = LEDC_TIMER_0;
-  ledc_channel.intr_type = LEDC_INTR_DISABLE;
-  ledc_channel.gpio_num = PIN_DRIVE_MID_RIGHT_5;
-  ledc_channel.duty = 0; // Set duty to 0%
-  ledc_channel.hpoint = 0;
-
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-
-  ledc_channel.speed_mode = LEDC_LOW_SPEED_MODE;
-  ledc_channel.channel = LEDC_CHANNEL_6;
-  ledc_channel.timer_sel = LEDC_TIMER_0;
-  ledc_channel.intr_type = LEDC_INTR_DISABLE;
-  ledc_channel.gpio_num = PIN_DRIVE_MID_LEFT_6;
-  ledc_channel.duty = 0; // Set duty to 0%
-  ledc_channel.hpoint = 0;
-
+  ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 }
 
-void motor_control_set(int32_t left, int32_t right, uint32_t x, uint32_t j2,
-                       uint32_t j3)
+void set_wheel_speed(int16_t left, int16_t right)
 {
-  set_pwm(FRONT_RIGHT_WHEEL_CHNL, right);
-  // set_pwm(BACK_RIGHT_WHEEL_CHNL, right);
-  // set_pwm(MID_RIGHT_WHEEL_CHNL, right);
-  // set_pwm(FRONT_LEFT_WHEEL_CHNL, left);
-  // set_pwm(BACK_LEFT_WHEEL_CHNL, left);
-  // set_pwm(MID_LEFT_WHEEL_CHNL, left);
-
-  // TODO: Set PWM duty cycles.
-  // scale ledc_set_duty parameter 3 from [INT16_MIN, INT16_MAX] or
-  // [0, UINT16_MAX] to [0, (1 << SOC_LEDC_TIMER_BIT_WIDTH) - 1]
-
-  // ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0));
-  // ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
+  set_fade(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, left, 10000);
+  set_fade(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHNL, right, 10000);
 }
 
-void current_sense_get(float *esc, float *cell1, float *cell2, float *cell3)
+void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
 {
+  set_pwm(X_SERVO_CHNL, x);
+  set_pwm(J2_SERVO_CHNL, j2);
+  set_pwm(J3_SERVO_CHNL, j3);
+}
+
+// void set_wheel_speed_uart(int16_t left, int16_t right) // change from esc to vesc
+// {
+//   float float_left = (float)left / INT16_MAX;
+//   float float_right = (float)right / INT16_MAX;
+//   vesc_drive(float_left, UART_NUM_1);
+//   vesc_drive(float_right, UART_NUM_MAX);
+//   ESP_LOGI("hardware.c", "left speed %.2f", float_left);
+//   ESP_LOGI("hardware.c", "right speed %.2f", float_right);
+// }
+
+void cell_sense_get(float *cell1, float *cell2, float *cell3)
+{
+
   // TODO: Read, calculate, and return ESC and cell sense values.
 }
+
+// void uart_init(int uart_num)
+// {
+//   ESP_ERROR_CHECK(uart_driver_install(uart_num, 2048, 2048, 0, NULL, 0));
+//   uart_config_t uart_config = {
+//       .baud_rate = 115200,
+//       .data_bits = UART_DATA_8_BITS,
+//       .parity = UART_PARITY_DISABLE,
+//       .stop_bits = UART_STOP_BITS_1,
+//       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+//   };
+//   // Configure UART parameters
+//   ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
+//   ESP_ERROR_CHECK(uart_set_pin(uart_num, 35, 34, 33, 26));
+// }
+
+// void vesc_drive(float duty, int uart_num)
+// {
+//   uint8_t payload[5];
+//   payload[0] = COMM_SET_DUTY;
+//   int32_t number = duty * 100000;
+//   payload[1] = number >> 24;
+//   payload[2] = number >> 16;
+//   payload[3] = number >> 8;
+//   payload[4] = number;
+
+//   uint16_t crcPayload = crc16(payload, 5);
+//   int count = 0;
+//   uint8_t messageSend[256];
+//   messageSend[count++] = 2;
+//   messageSend[count++] = 5;
+//   memcpy(messageSend + count, payload, 5);
+//   count += 5;
+
+//   messageSend[count++] = (uint8_t)(crcPayload >> 8);
+//   messageSend[count++] = (uint8_t)(crcPayload & 0xFF);
+//   messageSend[count++] = 3;
+
+//   uart_write_bytes(uart_num, messageSend, 256);
+// }

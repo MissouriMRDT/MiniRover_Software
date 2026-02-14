@@ -3,9 +3,11 @@
 #include "tft.h"
 #include "web.h"
 #include "driver/gpio.h"
+#include "esp_timer.h"
 #include <esp_log.h>
 #include <nvs_flash.h>
 #include <unistd.h>
+#include "driver/uart.h"
 
 static const char *TAG_MAIN = "main.c";
 
@@ -24,35 +26,65 @@ void app_main(void)
   ESP_LOGI(TAG_MAIN, "ESP_WIFI_MODE_AP");
   motor_control_init();
   pins_init();
-
-  motor_control_set(0, 500, 0, 0, 0);
-  sleep(1);
   ledc_fade_func_install(0);
-  while (1)
-  {
-    set_fade(FRONT_RIGHT_WHEEL_CHNL, 1000, 4, 250);
-    uint32_t duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, 2);
-    ESP_LOGI(TAG_MAIN, "Ramping_Testing %d", duty);
-  }
-// while (1)
-// {
-//   for (int i = 500; i < 1000; i += 50)
-//   {
-//     motor_control_set(0, i, 0, 0, 0);
-//     sleep(1);
-//   }
-//   motor_control_set(0, 0, 0, 0, 0);
-//   sleep(2);
-// }
-#include "esp_intr_alloc.h"
-  return;
+  servo_control_init();
 
-  wifi_init_softap();
+  set_wheel_speed(0, 0);
+  ESP_LOGI(TAG_MAIN, "Start of While loop");
+  while (true)
+  {
+    set_servo_positions(1000, 1000, 1000);
+    sleep(1);
+    set_servo_positions(-1000, -1000, -1000);
+    sleep(1);
+
+    // set_wheel_speed(1000, 1000);
+  }
+
+  /*
+  1000us full reverse, 1500 stop 2000 full forward
+
+  int16_t - -> +
+  set_wheel_speed(int16_t web_speed)
+  {
+    pulse_width = conversion(web_speed) (in us from 1000us to 2000us)
+    set_pulse_width(pulse_width)
+  }
+
+  uint16 0 -> max
+  set_arm_targets(uint16 uint16 uint16)
+  {
+    dutyx
+    dutyj2
+    dutyj3 = conv(web_angle) (a duty_cycle from deci% or 0 to uint16t_MAX)
+    set_pwm(duty)....
+
+  }
+  */
+
+  // int64_t next = esp_timer_get_time() + 5000000;
+  // ESP_LOGI("main", "start");
+  // while (esp_timer_get_time() < next)
+  // {
+  //   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (1 << SOC_LEDC_TIMER_BIT_WIDTH) * 0.5));
+  //   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
+  //   vTaskDelay(100 / portTICK_PERIOD_MS);
+  // }
+
+  // ESP_LOGI("main", "move");
+  // while (true)
+  // {
+  //   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, (1 << SOC_LEDC_TIMER_BIT_WIDTH) * 0.9));
+  //   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
+  //   vTaskDelay(100 / portTICK_PERIOD_MS);
+  // }
+
+  /*wifi_init_softap();
   tft_init();
   tft_draw_image(1, pixels);
   vTaskDelay(10000 / portTICK_PERIOD_MS);
   tft_draw_image(0, pixels);
 
   // Will not return.
-  webserver();
+  webserver();*/
 }

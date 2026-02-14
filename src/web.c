@@ -454,13 +454,13 @@ void webserver()
       if (estop || pms_stop)
       {
         esc_enabled_set(false);
-        motor_control_set(0, 0, 0, 0, 0);
+        set_wheel_speed(0, 0);
       }
       else
       {
         esc_enabled_set(true);
-        motor_control_set(webState.left, webState.right, webState.x,
-                          webState.j2, webState.j3);
+        set_wheel_speed(webState.left, webState.right);
+        set_servo_positions(webState.x, webState.j2, webState.j3);
       }
 
       httpd_queue_work(server, send_telemetry, server);
