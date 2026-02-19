@@ -426,9 +426,8 @@ void webserver()
           now <= webState.overriden_until ? webState.override_fd : -1;
 
       // Needed because txData is packed and pointers may be unaligned.
-      float escCurrent, cell1, cell2, cell3;
-      current_sense_get(&escCurrent, &cell1, &cell2, &cell3);
-      txData.esc_current = escCurrent;
+      float cell1, cell2, cell3;
+      cell_sense_get(&cell1, &cell2, &cell3);
       txData.cell1 = cell1;
       txData.cell2 = cell2;
       txData.cell3 = cell3;

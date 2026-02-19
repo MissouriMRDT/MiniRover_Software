@@ -33,12 +33,13 @@ void app_main(void)
   ESP_LOGI(TAG_MAIN, "Start of While loop");
   while (true)
   {
-    set_servo_positions(1000, 1000, 1000);
-    sleep(1);
-    set_servo_positions(-1000, -1000, -1000);
-    sleep(1);
-
-    // set_wheel_speed(1000, 1000);
+    set_wheel_speed(0, 0);
+    int duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL);
+    ESP_LOGI(TAG_MAIN, "duty is:, %d", duty);
+    // set_servo_positions(1000, 1000, 1000);
+    // sleep(1);
+    // set_servo_positions(-1000, -1000, -1000);
+    // sleep(1);
   }
 
   /*
