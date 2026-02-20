@@ -33,35 +33,17 @@ void app_main(void)
   ESP_LOGI(TAG_MAIN, "Start of While loop");
   while (true)
   {
-    set_wheel_speed(0, 0);
-    int duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL);
-    ESP_LOGI(TAG_MAIN, "duty is:, %d", duty);
-    // set_servo_positions(1000, 1000, 1000);
+    adc_init();
+    adc_run();
+    // set_servo_positions(0, 0, 0);
     // sleep(1);
-    // set_servo_positions(-1000, -1000, -1000);
+    // set_servo_positions(UINT16_MAX, 0, 0);
+    // sleep(1);
+    // set_servo_positions(UINT16_MAX / 2, 0, 0);
+    // sleep(1);
+    // set_servo_positions(UINT16_MAX / 3, 0, 0);
     // sleep(1);
   }
-
-  /*
-  1000us full reverse, 1500 stop 2000 full forward
-
-  int16_t - -> +
-  set_wheel_speed(int16_t web_speed)
-  {
-    pulse_width = conversion(web_speed) (in us from 1000us to 2000us)
-    set_pulse_width(pulse_width)
-  }
-
-  uint16 0 -> max
-  set_arm_targets(uint16 uint16 uint16)
-  {
-    dutyx
-    dutyj2
-    dutyj3 = conv(web_angle) (a duty_cycle from deci% or 0 to uint16t_MAX)
-    set_pwm(duty)....
-
-  }
-  */
 
   // int64_t next = esp_timer_get_time() + 5000000;
   // ESP_LOGI("main", "start");

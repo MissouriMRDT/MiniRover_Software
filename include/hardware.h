@@ -31,6 +31,12 @@
 #define X_SERVO_CHNL LEDC_CHANNEL_2
 #define J2_SERVO_CHNL LEDC_CHANNEL_3
 #define J3_SERVO_CHNL LEDC_CHANNEL_4
+#define CELL_SENSE_1_CHNL ADC_CHANNEL_0
+#define CELL_SENSE_2_CHNL ADC_CHANNEL_1
+#define CELL_SENSE_3_CHNL ADC_CHANNEL_2
+#define WHEEL_PWM_FREQ_HZ 50
+#define SERVO_PWM_FREQ_HZ 50
+#define WHEEL_FADE_TIME 1000
 
 bool estop_get(void);
 
@@ -38,8 +44,7 @@ void buzzer_set(bool on);
 
 void pins_init();
 
-void set_pwm(ledc_channel_t channel, uint16_t duty_cycle);
-
+// void set_pwm(ledc_channel_t channel, uint16_t duty_cycle);
 // void set_pulse_width(ledc_channel_t channel, int16_t pulse_width);
 // void set_fade(ledc_mode_t speed_mode, ledc_channel_t channel, uint32_t target_duty, int desired_fade_time_ms);
 

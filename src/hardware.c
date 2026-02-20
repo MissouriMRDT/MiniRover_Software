@@ -10,8 +10,6 @@
 #include <string.h>
 #include <esp_log.h>
 
-#define BUF_SIZE (1024)
-
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
@@ -114,20 +112,20 @@ void esc_enabled_set(bool enabled)
   }
 }
 
-void set_pwm(ledc_channel_t channel, uint16_t decipercent)
-{
-  // Map uint16 [0, uint16_MAX] to duty cycle [0, 2**resolution]
-  uint32_t duty;
-  duty = (decipercent * (1 << SOC_LEDC_TIMER_BIT_WIDTH)) / (UINT16_MAX);
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
-  // take in channel and duty cycle(0-1000 deci%)
-  // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
-  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
+// void set_pwm(ledc_channel_t channel, uint16_t decipercent)
+// {
+//   // Map uint16 [0, uint16_MAX] to duty cycle [0, 2**resolution]
+//   uint32_t duty;
+//   duty = (decipercent * (1 << SOC_LEDC_TIMER_BIT_WIDTH)) / (UINT16_MAX);
+//   ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
+//   // take in channel and duty cycle(0-1000 deci%)
+//   // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
+//   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
 
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
-  // update
-  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
-}
+//   ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
+//   // update
+//   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
+// }
 
 // void set_pulse_width(ledc_channel_t channel, int16_t pulse_width)
 // {
@@ -168,29 +166,40 @@ void adc_init(void)
       .ulp_mode = ADC_ULP_MODE_DISABLE,
   };
 
-  adc_oneshot_new_unit(&init_config, &cell_sense_handle);
+  ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &cell_sense_handle));
 
   adc_oneshot_chan_cfg_t config = {
       .bitwidth = ADC_BITWIDTH_DEFAULT,
       .atten = ADC_ATTEN_DB_12,
   };
 
-  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_0, &config);
-  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_1, &config);
-  adc_oneshot_config_channel(cell_sense_handle, ADC_CHANNEL_2, &config);
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(cell_sense_handle, CELL_SENSE_1_CHNL, &config));
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(cell_sense_handle, CELL_SENSE_2_CHNL, &config));
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(cell_sense_handle, CELL_SENSE_3_CHNL, &config));
 
-  // Find the raw value to then convert later
+  // Find the raw value to then convert later int raw_value_1;
   int raw_value_1;
-  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_1);
+  int raw_value_2;
+  int raw_value_3;
+
+  adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHNL, &raw_value_1);
   printf("ADC Raw Value: %d\n", raw_value_1);
 
-  int raw_value_2;
-  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_2);
+  adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHNL, &raw_value_2);
   printf("ADC Raw Value: %d\n", raw_value_2);
 
-  int raw_value_3;
-  adc_oneshot_read(cell_sense_handle, ADC_CHANNEL_0, &raw_value_3);
+  adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHNL, &raw_value_3);
   printf("ADC Raw Value: %d\n", raw_value_3);
+
+  // int converted_result;
+  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_1_CHNL, &converted_result));
+  // ESP_LOGI("hardware.c", "cell_sense_1", converted_result);
+
+  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_2_CHNL, &converted_result));
+  // ESP_LOGI("hardware.c", "cell_sense_2", converted_result);
+
+  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_3_CHNL, &converted_result));
+  // ESP_LOGI("hardware.c", "cell_sense_3", converted_result);
 
   // Convert to a voltage
   // Vout = Dout * Vmax / Dmax
@@ -208,7 +217,7 @@ void motor_control_init(void)
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
       .timer_num = LEDC_TIMER_0,
-      .freq_hz = 50,
+      .freq_hz = WHEEL_PWM_FREQ_HZ,
       .clk_cfg = LEDC_AUTO_CLK,
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
@@ -281,7 +290,7 @@ void servo_control_init(void)
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
       .timer_num = LEDC_TIMER_1,
-      .freq_hz = 50,
+      .freq_hz = SERVO_PWM_FREQ_HZ,
       .clk_cfg = LEDC_AUTO_CLK,
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
@@ -320,34 +329,27 @@ void servo_control_init(void)
 
 void set_wheel_speed(int16_t left, int16_t right)
 {
+  // left set fading
   uint16_t left_micro_seconds;
   // convert to 1000 to 2000 micro seconds
   left_micro_seconds = 1000 + (1000 * (((float)((int32_t)left - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
-
   // convert to percentage of period
-  uint8_t freq_hz = 50;
-  float percentage = ((float)left_micro_seconds) / (1000 * 1000 / (freq_hz));
-
+  float percentage = ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
   uint32_t duty;
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-
-  ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, duty, 1000);
+  ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, duty, WHEEL_FADE_TIME);
   ledc_fade_start(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, LEDC_FADE_NO_WAIT);
 
   // right set fading
-
   uint16_t right_micro_seconds;
   // convert to 1000 to 2000 micro seconds
   right_micro_seconds = 1000 + (1000 * (((float)((int32_t)right - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
-
   // convert to percentage of period
-  percentage = ((float)right_micro_seconds) / (1000 * 1000 / (freq_hz));
-
+  percentage = ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-
-  ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHNL, duty, 1000);
+  ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHNL, duty, WHEEL_FADE_TIME);
   ledc_fade_start(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHNL, LEDC_FADE_NO_WAIT);
 
   // set_fade(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, left_micro_seconds, 1000);
@@ -356,9 +358,39 @@ void set_wheel_speed(int16_t left, int16_t right)
 
 void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
 {
-  set_pwm(X_SERVO_CHNL, x);
-  set_pwm(J2_SERVO_CHNL, j2);
-  set_pwm(J3_SERVO_CHNL, j3);
+  // Servo x
+  uint16_t micro_seconds;
+  float percentage;
+  uint32_t duty;
+  micro_seconds = 500 + x * 2000 / (UINT16_MAX);                             // convert to microseconds(500-2500)
+  percentage = ((float)micro_seconds) / (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
+  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;                       // convert to [0, 2**duty_resolution]
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL, duty));
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL));
+
+  ESP_LOGI("hardwre.c", "micro_seconds: %d", micro_seconds);
+  ESP_LOGI("hardwre.c", "percentage: %f", percentage);
+  ESP_LOGI("hardwre.c", "duty: %d", duty);
+  int get_duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL);
+  ESP_LOGI("hardware.c", "get_duty: %d", get_duty);
+
+  // Servo j2
+  micro_seconds = 500 + j2 * 2000 / (UINT16_MAX);                            // convert to microseconds(500-2500)
+  percentage = ((float)micro_seconds) / (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
+  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;                       // convert to [0, 2**duty_resolution]
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHNL, duty));
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHNL));
+
+  // Servo j3
+  micro_seconds = 500 + j3 * 2000 / (UINT16_MAX);                            // convert to microseconds(500-2500)
+  percentage = ((float)micro_seconds) / (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
+  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;                       // convert to [0, 2**duty_resolution]
+  ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL, duty));
+  ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL));
+
+  // set_pwm(X_SERVO_CHNL, x);
+  // set_pwm(J2_SERVO_CHNL, j2);
+  // set_pwm(J3_SERVO_CHNL, j3);
 }
 
 // void set_wheel_speed_uart(int16_t left, int16_t right) // change from esc to vesc
