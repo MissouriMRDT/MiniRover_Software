@@ -5,7 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "stdint.h"
 #include "esp_timer.h"
-#include "vesc.h"
 #include "driver/uart.h"
 #include <string.h>
 #include <esp_log.h>
@@ -227,6 +226,11 @@ void adc_init(void)
 
 void motor_control_init(void)
 {
+  uint16_t init_micro_seconds = 1500;
+  float percentage = ((float)init_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+  // convert to [0, 2 ** duty_resolution]
+  uint32_t duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
+
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
@@ -241,7 +245,7 @@ void motor_control_init(void)
       .channel = LEDC_CHANNEL_0,
       .intr_type = LEDC_INTR_DISABLE,
       .timer_sel = LEDC_TIMER_0,
-      .duty = 0,
+      .duty = duty,
       .hpoint = 0,
       .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
   };
@@ -252,7 +256,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_RIGHT_2;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -262,7 +266,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_RIGHT_3;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -272,7 +276,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_1;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -282,7 +286,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_2;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -292,7 +296,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_3;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));

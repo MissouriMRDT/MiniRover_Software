@@ -36,7 +36,7 @@
 #define CELL_SENSE_3_CHNL ADC_CHANNEL_2
 #define WHEEL_PWM_FREQ_HZ 50
 #define SERVO_PWM_FREQ_HZ 50
-#define WHEEL_FADE_TIME 1000
+#define WHEEL_FADE_TIME 10000
 
 bool estop_get(void);
 

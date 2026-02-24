@@ -30,10 +30,19 @@ void app_main(void)
   servo_control_init();
 
   set_wheel_speed(0, 0);
+  sleep(5);
+
   ESP_LOGI(TAG_MAIN, "Start of While loop");
   while (true)
   {
-    adc_init();
+    set_wheel_speed(INT16_MAX, INT16_MAX);
+    set_wheel_speed(0, 0);
+    set_wheel_speed(INT16_MIN, INT16_MIN);
+    set_wheel_speed(0, 0);
+
+    int16_t duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL);
+    ESP_LOGI(TAG_MAIN, "duty_is: %d", duty);
+    // adc_init();
     // set_servo_positions(0, 0, 0);
     // sleep(1);
     // set_servo_positions(UINT16_MAX, 0, 0);
