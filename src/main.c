@@ -34,7 +34,6 @@ void app_main(void)
   while (true)
   {
     adc_init();
-    adc_run();
     // set_servo_positions(0, 0, 0);
     // sleep(1);
     // set_servo_positions(UINT16_MAX, 0, 0);

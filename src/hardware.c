@@ -182,14 +182,28 @@ void adc_init(void)
   int raw_value_2;
   int raw_value_3;
 
+  float Vmax = 1.1;                         // Max Voltage
+  int16_t Dmax = 1 << ADC_BITWIDTH_DEFAULT; // 2^BitWidth: ADC_BITWIDTH_DEFAULT sets to max bitwidth
+  printf("ADC BitWidth Default: %d\n", ADC_BITWIDTH_DEFAULT);
+  printf("Dmax: %d\n", Dmax);
+
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHNL, &raw_value_1);
-  printf("ADC Raw Value: %d\n", raw_value_1);
+  printf("ADC Raw Value 1: %d\n", raw_value_1);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHNL, &raw_value_2);
-  printf("ADC Raw Value: %d\n", raw_value_2);
+  printf("ADC Raw Value 2: %d\n", raw_value_2);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHNL, &raw_value_3);
-  printf("ADC Raw Value: %d\n", raw_value_3);
+  printf("ADC Raw Value 3: %d\n", raw_value_3);
+
+  float Cell1 = raw_value_1 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell1: %f\n", Cell1);
+
+  float Cell2 = raw_value_2 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell2: %f\n", Cell2);
+
+  float Cell3 = raw_value_3 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell3: %f\n", Cell3);
 
   // int converted_result;
   // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_1_CHNL, &converted_result));
