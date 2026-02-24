@@ -307,7 +307,7 @@ void tft_init() {
 // pixels: 1 uint16 per pixel g2 g1 g0 b4 b3 b2 b1 b0 r4 r3 r2 r1 r0 g5 g4 g3,
 // must have DMA_ATTR
 void tft_send_image_part(uint8_t part, uint16_t pixels[PIXELS_LENGTH]) {
-  if (part < 4) {
+  if (part < 8) {
     send_lines(spi, part * PARALLEL_LINES, pixels);
     send_line_finish(spi);
   }
@@ -319,7 +319,7 @@ void tft_draw_image(uint8_t idx, uint16_t pixels[PIXELS_LENGTH]) {
   size_t offset = IMAGE_BYTES * idx; // within logo data
   uint16_t *colors = (uint16_t *)(FILE_IMAGES_START + offset);
   offset += PALATTE_SIZE * sizeof(uint16_t);
-  for (uint8_t part = 0; part < 4; part++) {
+  for (uint8_t part = 0; part < 8; part++) {
     size_t position = 0; // within pixels
     while (position < PIXELS_LENGTH) {
       pixels[position++] = colors[FILE_IMAGES_START[offset] & 0b00000011];

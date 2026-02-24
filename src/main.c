@@ -29,22 +29,6 @@ void app_main(void)
   ledc_fade_func_install(0);
   servo_control_init();
 
-  set_wheel_speed(0, 0);
-  ESP_LOGI(TAG_MAIN, "Start of While loop");
-  while (true)
-  {
-    adc_init();
-    adc_run();
-    // set_servo_positions(0, 0, 0);
-    // sleep(1);
-    // set_servo_positions(UINT16_MAX, 0, 0);
-    // sleep(1);
-    // set_servo_positions(UINT16_MAX / 2, 0, 0);
-    // sleep(1);
-    // set_servo_positions(UINT16_MAX / 3, 0, 0);
-    // sleep(1);
-  }
-
   // int64_t next = esp_timer_get_time() + 5000000;
   // ESP_LOGI("main", "start");
   // while (esp_timer_get_time() < next)
@@ -62,12 +46,12 @@ void app_main(void)
   //   vTaskDelay(100 / portTICK_PERIOD_MS);
   // }
 
-  /*wifi_init_softap();
+  wifi_init_softap();
   tft_init();
   tft_draw_image(1, pixels);
   vTaskDelay(10000 / portTICK_PERIOD_MS);
   tft_draw_image(0, pixels);
 
   // Will not return.
-  webserver();*/
+  webserver();
 }

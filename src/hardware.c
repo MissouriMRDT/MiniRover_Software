@@ -354,6 +354,7 @@ void set_wheel_speed(int16_t left, int16_t right)
 
   // set_fade(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL, left_micro_seconds, 1000);
   // set_fade(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHNL, right, 1000);
+  ESP_LOGI("hardware.c", "LEFT: %d  RIGHT: %d", left_micro_seconds, right_micro_seconds);
 }
 
 void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
@@ -368,11 +369,11 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL, duty));
   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL));
 
-  ESP_LOGI("hardwre.c", "micro_seconds: %d", micro_seconds);
-  ESP_LOGI("hardwre.c", "percentage: %f", percentage);
-  ESP_LOGI("hardwre.c", "duty: %d", duty);
+  ESP_LOGI("hardware.c", "Xms: %d", micro_seconds);
+  // ESP_LOGI("hardware.c", "percentage: %f", percentage);
+  // ESP_LOGI("hardware.c", "duty: %d", duty);
   int get_duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHNL);
-  ESP_LOGI("hardware.c", "get_duty: %d", get_duty);
+  // ESP_LOGI("hardware.c", "get_duty: %d", get_duty);
 
   // Servo j2
   micro_seconds = 500 + j2 * 2000 / (UINT16_MAX);                            // convert to microseconds(500-2500)
@@ -380,6 +381,7 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;                       // convert to [0, 2**duty_resolution]
   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHNL, duty));
   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHNL));
+  ESP_LOGI("hardware.c", "J2ms: %d", micro_seconds);
 
   // Servo j3
   micro_seconds = 500 + j3 * 2000 / (UINT16_MAX);                            // convert to microseconds(500-2500)
@@ -387,6 +389,7 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;                       // convert to [0, 2**duty_resolution]
   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL, duty));
   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL));
+  ESP_LOGI("hardware.c", "J3ms: %d", micro_seconds);
 
   // set_pwm(X_SERVO_CHNL, x);
   // set_pwm(J2_SERVO_CHNL, j2);

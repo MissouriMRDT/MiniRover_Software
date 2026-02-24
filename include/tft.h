@@ -20,7 +20,7 @@
 // To speed up transfers, every SPI transfer sends a bunch of lines. This define
 // specifies how many. More means more memory use, but less overhead for setting
 // up / finishing transfers. Make sure 240 is dividable by this.
-#define PARALLEL_LINES 60
+#define PARALLEL_LINES 30
 #define PIXELS_LENGTH (LCD_WIDTH * (PARALLEL_LINES))
 #define PIXELS_BYTES (PIXELS_LENGTH * sizeof(uint16_t))
 

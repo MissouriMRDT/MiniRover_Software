@@ -448,7 +448,8 @@ void webserver()
       txData.drive_speed = webState.drive_speed;
 
       bool estop = estop_get();
-      bool pms_stop = true; // TODO: set based on cell_sense_get
+      estop = false;
+      bool pms_stop = false; // TODO: set based on cell_sense_get
       buzzer_set(pms_stop);
       if (estop || pms_stop)
       {
