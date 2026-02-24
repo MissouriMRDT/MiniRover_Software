@@ -29,6 +29,30 @@ void app_main(void)
   ledc_fade_func_install(0);
   servo_control_init();
 
+  set_wheel_speed(0, 0);
+  sleep(5);
+
+  ESP_LOGI(TAG_MAIN, "Start of While loop");
+  while (true)
+  {
+    set_wheel_speed(INT16_MAX, INT16_MAX);
+    set_wheel_speed(0, 0);
+    set_wheel_speed(INT16_MIN, INT16_MIN);
+    set_wheel_speed(0, 0);
+
+    int16_t duty = ledc_get_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHNL);
+    ESP_LOGI(TAG_MAIN, "duty_is: %d", duty);
+    // adc_init();
+    // set_servo_positions(0, 0, 0);
+    // sleep(1);
+    // set_servo_positions(UINT16_MAX, 0, 0);
+    // sleep(1);
+    // set_servo_positions(UINT16_MAX / 2, 0, 0);
+    // sleep(1);
+    // set_servo_positions(UINT16_MAX / 3, 0, 0);
+    // sleep(1);
+  }
+
   // int64_t next = esp_timer_get_time() + 5000000;
   // ESP_LOGI("main", "start");
   // while (esp_timer_get_time() < next)

@@ -5,7 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "stdint.h"
 #include "esp_timer.h"
-#include "vesc.h"
 #include "driver/uart.h"
 #include <string.h>
 #include <esp_log.h>
@@ -182,14 +181,28 @@ void adc_init(void)
   int raw_value_2;
   int raw_value_3;
 
+  float Vmax = 1.1;                         // Max Voltage
+  int16_t Dmax = 1 << ADC_BITWIDTH_DEFAULT; // 2^BitWidth: ADC_BITWIDTH_DEFAULT sets to max bitwidth
+  printf("ADC BitWidth Default: %d\n", ADC_BITWIDTH_DEFAULT);
+  printf("Dmax: %d\n", Dmax);
+
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHNL, &raw_value_1);
-  printf("ADC Raw Value: %d\n", raw_value_1);
+  printf("ADC Raw Value 1: %d\n", raw_value_1);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHNL, &raw_value_2);
-  printf("ADC Raw Value: %d\n", raw_value_2);
+  printf("ADC Raw Value 2: %d\n", raw_value_2);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHNL, &raw_value_3);
-  printf("ADC Raw Value: %d\n", raw_value_3);
+  printf("ADC Raw Value 3: %d\n", raw_value_3);
+
+  float Cell1 = raw_value_1 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell1: %f\n", Cell1);
+
+  float Cell2 = raw_value_2 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell2: %f\n", Cell2);
+
+  float Cell3 = raw_value_3 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
+  printf("Cell3: %f\n", Cell3);
 
   // int converted_result;
   // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_1_CHNL, &converted_result));
@@ -213,6 +226,11 @@ void adc_init(void)
 
 void motor_control_init(void)
 {
+  uint16_t init_micro_seconds = 1500;
+  float percentage = ((float)init_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+  // convert to [0, 2 ** duty_resolution]
+  uint32_t duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
+
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
@@ -227,7 +245,7 @@ void motor_control_init(void)
       .channel = LEDC_CHANNEL_0,
       .intr_type = LEDC_INTR_DISABLE,
       .timer_sel = LEDC_TIMER_0,
-      .duty = 0,
+      .duty = duty,
       .hpoint = 0,
       .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
   };
@@ -238,7 +256,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_RIGHT_2;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -248,7 +266,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_RIGHT_3;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -258,7 +276,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_1;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -268,7 +286,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_2;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
@@ -278,7 +296,7 @@ void motor_control_init(void)
   ledc_channel.timer_sel = LEDC_TIMER_0;
   ledc_channel.intr_type = LEDC_INTR_DISABLE;
   ledc_channel.gpio_num = PIN_DRIVE_LEFT_3;
-  ledc_channel.duty = 0;
+  ledc_channel.duty = duty;
   ledc_channel.hpoint = 0;
   ledc_channel.sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD;
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
