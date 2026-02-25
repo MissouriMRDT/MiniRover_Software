@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "driver/ledc.h"
+#include "esp_adc/adc_oneshot.h"
 
 // TODO: Update from schematic
 #define PIN_ESTOP 19
@@ -44,10 +45,6 @@ void buzzer_set(bool on);
 
 void pins_init();
 
-// void set_pwm(ledc_channel_t channel, uint16_t duty_cycle);
-// void set_pulse_width(ledc_channel_t channel, int16_t pulse_width);
-// void set_fade(ledc_mode_t speed_mode, ledc_channel_t channel, uint32_t target_duty, int desired_fade_time_ms);
-
 void esc_enabled_set(bool enabled);
 
 void motor_control_init(void);
@@ -59,9 +56,5 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3);
 void adc_init(void);
 
 void cell_sense_get(float *cell1, float *cell2, float *cell3);
-
-// void set_wheel_speed_uart(int16_t left, int16_t right);
-// void uart_init(int uart_num);
-// void vesc_drive(float duty, int uart_num);
 
 #endif

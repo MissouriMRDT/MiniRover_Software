@@ -9,10 +9,6 @@
 #include <string.h>
 #include <esp_log.h>
 
-#include "esp_adc/adc_oneshot.h"
-#include "esp_adc/adc_cali.h"
-#include "esp_adc/adc_cali_scheme.h"
-
 bool estop_get(void)
 {
   if (gpio_get_level(PIN_ESTOP) == 0)
@@ -111,52 +107,6 @@ void esc_enabled_set(bool enabled)
   }
 }
 
-// void set_pwm(ledc_channel_t channel, uint16_t decipercent)
-// {
-//   // Map uint16 [0, uint16_MAX] to duty cycle [0, 2**resolution]
-//   uint32_t duty;
-//   duty = (decipercent * (1 << SOC_LEDC_TIMER_BIT_WIDTH)) / (UINT16_MAX);
-//   ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
-//   // take in channel and duty cycle(0-1000 deci%)
-//   // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
-//   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
-
-//   ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
-//   // update
-//   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
-// }
-
-// void set_pulse_width(ledc_channel_t channel, int16_t pulse_width)
-// {
-//   // Map decipercent [0, 1000] to duty cycle [0, 2**resolution]
-//   uint32_t duty;
-//   duty = 1000 + (1000 * (pulse_width - INT16_MIN) / (INT16_MAX - INT16_MIN));
-//   // duty = (pulse_width * (1 << 8)) / 1000;
-//   ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty);
-//   // take in channel and duty cycle(0-1000 deci%)
-//   // convert duty cycle to -bit(-resolution-same as ledc-timer resolution)
-//   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, channel, duty));
-
-//   ledc_update_duty(LEDC_LOW_SPEED_MODE, channel);
-//   // update
-//   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, channel));
-// }
-
-// void set_fade(ledc_mode_t speed_mode, ledc_channel_t channel, uint32_t micro_seconds, int desired_fade_time_ms)
-// {
-
-//   // convert to percentage of period
-//   uint32_t freq_hz = 50;
-//   float percentage = (micro_seconds - 1000) / (1000 * 1000 / (freq_hz));
-
-//   // convert to [0, 2 ** duty_resolution]
-//   uint32_t duty;
-//   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-
-//   ledc_set_fade_with_time(LEDC_LOW_SPEED_MODE, channel, duty, desired_fade_time_ms);
-//   ledc_fade_start(LEDC_LOW_SPEED_MODE, channel, LEDC_FADE_NO_WAIT);
-// }
-
 void adc_init(void)
 {
   adc_oneshot_unit_handle_t cell_sense_handle;
@@ -183,17 +133,12 @@ void adc_init(void)
 
   float Vmax = 1.1;                         // Max Voltage
   int16_t Dmax = 1 << ADC_BITWIDTH_DEFAULT; // 2^BitWidth: ADC_BITWIDTH_DEFAULT sets to max bitwidth
-  printf("ADC BitWidth Default: %d\n", ADC_BITWIDTH_DEFAULT);
-  printf("Dmax: %d\n", Dmax);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHNL, &raw_value_1);
-  printf("ADC Raw Value 1: %d\n", raw_value_1);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHNL, &raw_value_2);
-  printf("ADC Raw Value 2: %d\n", raw_value_2);
 
   adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHNL, &raw_value_3);
-  printf("ADC Raw Value 3: %d\n", raw_value_3);
 
   float Cell1 = raw_value_1 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
   printf("Cell1: %f\n", Cell1);
@@ -203,25 +148,6 @@ void adc_init(void)
 
   float Cell3 = raw_value_3 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
   printf("Cell3: %f\n", Cell3);
-
-  // int converted_result;
-  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_1_CHNL, &converted_result));
-  // ESP_LOGI("hardware.c", "cell_sense_1", converted_result);
-
-  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_2_CHNL, &converted_result));
-  // ESP_LOGI("hardware.c", "cell_sense_2", converted_result);
-
-  // ESP_ERROR_CHECK(adc_oneshot_get_calibrated_result(cell_sense_handle, NULL, CELL_SENSE_3_CHNL, &converted_result));
-  // ESP_LOGI("hardware.c", "cell_sense_3", converted_result);
-
-  // Convert to a voltage
-  // Vout = Dout * Vmax / Dmax
-  // Where Dout is the raw ADC value, Vmax is the maximum input voltage, and Dmax is 2^bitwidth.
-
-  // Find Cell voltage bitwidth
-
-  // Maximum of the output ADC raw digital reading result, which is 2^bitwidth,
-  // where bitwidth is the adc_oneshot_chan_cfg_t::bitwidth configured before.
 }
 
 void motor_control_init(void)
@@ -408,64 +334,10 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3)
   ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL, duty));
   ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHNL));
   ESP_LOGI("hardware.c", "J3ms: %d", micro_seconds);
-
-  // set_pwm(X_SERVO_CHNL, x);
-  // set_pwm(J2_SERVO_CHNL, j2);
-  // set_pwm(J3_SERVO_CHNL, j3);
 }
-
-// void set_wheel_speed_uart(int16_t left, int16_t right) // change from esc to vesc
-// {
-//   float float_left = (float)left / INT16_MAX;
-//   float float_right = (float)right / INT16_MAX;
-//   vesc_drive(float_left, UART_NUM_1);
-//   vesc_drive(float_right, UART_NUM_MAX);
-//   ESP_LOGI("hardware.c", "left speed %.2f", float_left);
-//   ESP_LOGI("hardware.c", "right speed %.2f", float_right);
-// }
 
 void cell_sense_get(float *cell1, float *cell2, float *cell3)
 {
 
   // TODO: Read, calculate, and return ESC and cell sense values.
 }
-
-// void uart_init(int uart_num)
-// {
-//   ESP_ERROR_CHECK(uart_driver_install(uart_num, 2048, 2048, 0, NULL, 0));
-//   uart_config_t uart_config = {
-//       .baud_rate = 115200,
-//       .data_bits = UART_DATA_8_BITS,
-//       .parity = UART_PARITY_DISABLE,
-//       .stop_bits = UART_STOP_BITS_1,
-//       .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-//   };
-//   // Configure UART parameters
-//   ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
-//   ESP_ERROR_CHECK(uart_set_pin(uart_num, 35, 34, 33, 26));
-// }
-
-// void vesc_drive(float duty, int uart_num)
-// {
-//   uint8_t payload[5];
-//   payload[0] = COMM_SET_DUTY;
-//   int32_t number = duty * 100000;
-//   payload[1] = number >> 24;
-//   payload[2] = number >> 16;
-//   payload[3] = number >> 8;
-//   payload[4] = number;
-
-//   uint16_t crcPayload = crc16(payload, 5);
-//   int count = 0;
-//   uint8_t messageSend[256];
-//   messageSend[count++] = 2;
-//   messageSend[count++] = 5;
-//   memcpy(messageSend + count, payload, 5);
-//   count += 5;
-
-//   messageSend[count++] = (uint8_t)(crcPayload >> 8);
-//   messageSend[count++] = (uint8_t)(crcPayload & 0xFF);
-//   messageSend[count++] = 3;
-
-//   uart_write_bytes(uart_num, messageSend, 256);
-// }
