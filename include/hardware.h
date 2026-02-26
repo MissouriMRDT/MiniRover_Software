@@ -1,21 +1,17 @@
 #ifndef _HARDWARE_H_
 #define _HARDWARE_H_
 
-#include <stdbool.h>
-#include <stdint.h>
 #include "driver/ledc.h"
 #include "esp_adc/adc_oneshot.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 // TODO: Update from schematic
 #define PIN_ESTOP 19
 #define PIN_BUZZER 0
 #define PIN_ESC_ENABLE 37
-#define PIN_DRIVE_RIGHT_1 35
-#define PIN_DRIVE_RIGHT_2 34
-#define PIN_DRIVE_RIGHT_3 33
-#define PIN_DRIVE_LEFT_1 26
-#define PIN_DRIVE_LEFT_2 21
-#define PIN_DRIVE_LEFT_3 20
+#define PIN_DRIVE_RIGHT 35
+#define PIN_DRIVE_LEFT 26
 #define PIN_ARM_PWM_X 6
 #define PIN_ARM_PWM_J2 8
 #define PIN_ARM_PWM_J3 10
@@ -27,14 +23,14 @@
 #define PIN_CURRENT_CELL_2 2
 #define PIN_CURRENT_CELL_3 3
 
-#define LEFT_WHEELS_CHNL LEDC_CHANNEL_0
-#define RIGHT_WHEELS_CHNL LEDC_CHANNEL_1
-#define X_SERVO_CHNL LEDC_CHANNEL_2
-#define J2_SERVO_CHNL LEDC_CHANNEL_3
-#define J3_SERVO_CHNL LEDC_CHANNEL_4
-#define CELL_SENSE_1_CHNL ADC_CHANNEL_0
-#define CELL_SENSE_2_CHNL ADC_CHANNEL_1
-#define CELL_SENSE_3_CHNL ADC_CHANNEL_2
+#define LEFT_WHEELS_CHANNEL LEDC_CHANNEL_0
+#define RIGHT_WHEELS_CHANNEL LEDC_CHANNEL_1
+#define X_SERVO_CHANNEL LEDC_CHANNEL_2
+#define J2_SERVO_CHANNEL LEDC_CHANNEL_3
+#define J3_SERVO_CHANNEL LEDC_CHANNEL_4
+#define CELL_SENSE_1_CHANNEL ADC_CHANNEL_0
+#define CELL_SENSE_2_CHANNEL ADC_CHANNEL_1
+#define CELL_SENSE_3_CHANNEL ADC_CHANNEL_2
 #define WHEEL_PWM_FREQ_HZ 50
 #define SERVO_PWM_FREQ_HZ 50
 #define WHEEL_FADE_TIME 10000

@@ -1,8 +1,9 @@
 /.pio
-/.vscode
 /sdkconfig.*
 !/sdkconfig.defaults
 /CMakeCache.txt
 /data/images.bin
 /data/images.js
 /venv
+/.vscode/c_cpp_properties.json
+/.vscode/launch.json
