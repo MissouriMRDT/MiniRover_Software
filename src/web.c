@@ -404,10 +404,10 @@ void webserver() {
       bool pms_stop = false; // TODO: set based on cell_sense_get
       buzzer_set(pms_stop);
       if (estop || pms_stop) {
-        // set_wheel_speed(0, 0);
+        set_wheel_speed(0, 0);
       } else {
         set_wheel_speed(webState.left, webState.right);
-        // set_servo_positions(webState.x, webState.j2, webState.j3);
+        set_servo_positions(webState.x, webState.j2, webState.j3);
       }
 
       httpd_queue_work(server, send_telemetry, server);
