@@ -120,11 +120,6 @@ void adc_init(void) {
 }
 
 void motor_control_init(void) {
-  uint16_t init_micro_seconds = 1500;
-  float percentage =
-      ((float)init_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
-  // convert to [0, 2 ** duty_resolution]
-  uint32_t duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
 
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
@@ -135,21 +130,29 @@ void motor_control_init(void) {
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 
-  ledc_channel_config_t ledc_channel = {
+  ledc_channel_config_t ledc_channel_0 = {
       .gpio_num = PIN_DRIVE_LEFT,
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .channel = LEFT_WHEELS_CHANNEL,
       .intr_type = LEDC_INTR_DISABLE,
       .timer_sel = LEDC_TIMER_0,
-      .duty = duty,
+      .duty = 0,
       .hpoint = 0,
       .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
   };
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_0));
 
-  ledc_channel.channel = RIGHT_WHEELS_CHANNEL;
-  ledc_channel.gpio_num = PIN_DRIVE_RIGHT;
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+  ledc_channel_config_t ledc_channel_1 = {
+      .gpio_num = PIN_DRIVE_RIGHT,
+      .speed_mode = LEDC_LOW_SPEED_MODE,
+      .channel = RIGHT_WHEELS_CHANNEL,
+      .intr_type = LEDC_INTR_DISABLE,
+      .timer_sel = LEDC_TIMER_0,
+      .duty = 0,
+      .hpoint = 0,
+      .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+  };
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_1));
 }
 
 void servo_control_init(void) {
@@ -161,7 +164,8 @@ void servo_control_init(void) {
       .clk_cfg = LEDC_AUTO_CLK,
   };
   ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
-  ledc_channel_config_t ledc_channel = {
+
+  ledc_channel_config_t ledc_channel_2 = {
       .gpio_num = PIN_ARM_PWM_X,
       .speed_mode = LEDC_LOW_SPEED_MODE,
       .channel = X_SERVO_CHANNEL,
@@ -171,40 +175,59 @@ void servo_control_init(void) {
       .hpoint = 0,
       .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
   };
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-  ledc_channel.channel = LEDC_CHANNEL_1;
-  ledc_channel.gpio_num = PIN_ARM_PWM_J2;
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-  ledc_channel.channel = LEDC_CHANNEL_2;
-  ledc_channel.gpio_num = PIN_ARM_PWM_J3;
-  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_2));
+
+  ledc_channel_config_t ledc_channel_3 = {
+      .gpio_num = PIN_ARM_PWM_J2,
+      .speed_mode = LEDC_LOW_SPEED_MODE,
+      .channel = J2_SERVO_CHANNEL,
+      .intr_type = LEDC_INTR_DISABLE,
+      .timer_sel = LEDC_TIMER_1,
+      .duty = 0,
+      .hpoint = 0,
+      .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+  };
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_3));
+
+  ledc_channel_config_t ledc_channel_4 = {
+      .gpio_num = PIN_ARM_PWM_J3,
+      .speed_mode = LEDC_LOW_SPEED_MODE,
+      .channel = J3_SERVO_CHANNEL,
+      .intr_type = LEDC_INTR_DISABLE,
+      .timer_sel = LEDC_TIMER_1,
+      .duty = 0,
+      .hpoint = 0,
+      .sleep_mode = LEDC_SLEEP_MODE_NO_ALIVE_NO_PD,
+  };
+  ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_4));
 }
 
+// NOTE: RIGHT WHEELS CHANNEL SET / UPDATE DUTY MUST BE CALLED BEFORE LEFT WHEELS CHANNEL (idk why)
 void set_wheel_speed(int16_t left, int16_t right) {
   // convert to 1000 to 2000 micro seconds
-  uint16_t left_micro_seconds =
+  uint16_t right_micro_seconds =
       1000 +
-      (1000 * (((float)((int32_t)left - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
+      (1000 * (((float)((int32_t)right - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
   // convert to percentage of period
   float percentage =
-      ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+      ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
   uint32_t duty;
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL);
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL);
 
   // convert to 1000 to 2000 micro seconds
-  uint16_t right_micro_seconds =
-      1000 + (1000 * (((float)((int32_t)right - INT16_MIN)) /
+  uint16_t left_micro_seconds =
+      1000 + (1000 * (((float)((int32_t)left - INT16_MIN)) /
                       (INT16_MAX - INT16_MIN)));
   // convert to percentage of period
   percentage =
-      ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+      ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
   duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL);
+  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty);
+  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL);
 }
 
 void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {

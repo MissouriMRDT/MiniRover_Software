@@ -23,13 +23,14 @@ void app_main(void) {
 
   ESP_LOGI(TAG_MAIN, "ESP_WIFI_MODE_AP");
   motor_control_init();
+  set_wheel_speed(0, 0);
   pins_init();
   servo_control_init();
 
   wifi_init_softap();
+  vTaskDelay(10000);
   tft_init();
   tft_draw_image(1, pixels);
-  vTaskDelay(10000 / portTICK_PERIOD_MS);
   tft_draw_image(0, pixels);
   // Will not return.
   webserver();

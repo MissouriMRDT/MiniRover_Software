@@ -366,14 +366,16 @@ void webserver() {
 
     // Send telemetry every 100ms.
     while (server != NULL) {
+      ESP_LOGI("web.c", "WEB_LOOP!!");
       int64_t now = esp_timer_get_time();
       // Send file descriptor(s) with priority and override unless they are
       // expired.
       txData.drive_priority_fd = now <= webState.drive_priority_until
-                                     ? webState.drive_priority_fd
-                                     : -1;
+                                      ? webState.drive_priority_fd
+                                      : -1;
       txData.arm_priority_fd =
-          now <= webState.arm_priority_until ? webState.arm_priority_fd : -1;
+          now <= webState.arm_priority_until ? webState.arm_priority_fd :
+          -1;
       txData.override_fd =
           now <= webState.overriden_until ? webState.override_fd : -1;
 
@@ -392,10 +394,8 @@ void webserver() {
 
       // Needed because txData is packed and pointers may be unaligned.
       int16_t x, y, z;
-      fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y, &z);
-      txData.x = x;
-      txData.y = y;
-      txData.z = z;
+      fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y,
+      &z); txData.x = x; txData.y = y; txData.z = z;
 
       txData.drive_speed = webState.drive_speed;
 
@@ -411,7 +411,7 @@ void webserver() {
       }
 
       httpd_queue_work(server, send_telemetry, server);
-      vTaskDelay(MAINLOOP_DELAY / portTICK_PERIOD_MS);
+      vTaskDelay(100);
     }
     ESP_LOGE(TAG_WEB, "Main loop exited!");
   } else {
