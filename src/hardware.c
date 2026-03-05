@@ -10,15 +10,15 @@
 
 bool estop_get(void) {
   if (gpio_get_level(PIN_ESTOP) == 0) {
-    return true;
-  } else {
     return false;
+  } else {
+    return true;
   }
 }
 
 void pins_init() {
   gpio_config_t GPIO_config = {
-      .pin_bit_mask = (1ULL << PIN_BUZZER),
+      .pin_bit_mask = (1ULL << PIN_BUZZER) | (1ULL << PIN_ESC_ENABLE),
       .mode = GPIO_MODE_OUTPUT,
       .pull_up_en = GPIO_PULLUP_DISABLE,
       .pull_down_en = GPIO_PULLDOWN_DISABLE,
@@ -70,7 +70,7 @@ void buzzer_set(bool on) {
     }
     // TODO: turn on and off buzer
     // TODO: differnt buzzing patterns for low voltage vs low current
-  }
+  } else gpio_set_level(PIN_BUZZER, 0);
 }
 
 void adc_init(void) {
@@ -236,7 +236,7 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   float percentage;
   uint32_t duty;
   micro_seconds =
-      500 + x * 2000 / (UINT16_MAX); // convert to microseconds(500-2500)
+      X_MIN_MICROSECS + x * (X_MAX_MICROSECS - X_MIN_MICROSECS) / (UINT16_MAX); // convert to microseconds(1000-1350)
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
@@ -247,7 +247,7 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
 
   // Servo j2
   micro_seconds =
-      500 + j2 * 2000 / (UINT16_MAX); // convert to microseconds(500-2500)
+      j2_MIN_MICROSECS + j2 * (j2_MAX_MICROSECS - j2_MIN_MICROSECS) / (UINT16_MAX); // convert to microseconds(700-2300)
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
@@ -258,7 +258,7 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
 
   // Servo j3
   micro_seconds =
-      500 + j3 * 2000 / (UINT16_MAX); // convert to microseconds(500-2500)
+      j3_MIN_MICROSECS + j3 * (j3_MAX_MICROSECS - j3_MIN_MICROSECS) / (UINT16_MAX); // convert to microseconds(700-2300)
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency

@@ -28,7 +28,7 @@ void app_main(void) {
   servo_control_init();
 
   wifi_init_softap();
-  vTaskDelay(10000);
+  vTaskDelay(1000);
   tft_init();
   tft_draw_image(1, pixels);
   tft_draw_image(0, pixels);

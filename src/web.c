@@ -398,16 +398,19 @@ void webserver() {
       &z); txData.x = x; txData.y = y; txData.z = z;
 
       txData.drive_speed = webState.drive_speed;
-
+      
       bool estop = estop_get();
-      estop = false;
       bool pms_stop = false; // TODO: set based on cell_sense_get
-      buzzer_set(pms_stop);
       if (estop || pms_stop) {
+        ESP_LOGI("web.c", "ESTOP!!");
         set_wheel_speed(0, 0);
+        buzzer_set(true);
+        gpio_set_level(PIN_ESC_ENABLE, 0);
       } else {
         set_wheel_speed(webState.left, webState.right);
         set_servo_positions(webState.x, webState.j2, webState.j3);
+        buzzer_set(false);
+        gpio_set_level(PIN_ESC_ENABLE, 1);
       }
 
       httpd_queue_work(server, send_telemetry, server);

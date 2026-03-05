@@ -8,7 +8,7 @@
 
 // TODO: Update from schematic
 #define PIN_ESTOP 19
-#define PIN_BUZZER 0
+#define PIN_BUZZER 11
 #define PIN_ESC_ENABLE 37
 #define PIN_DRIVE_RIGHT 35
 #define PIN_DRIVE_LEFT 26
@@ -34,6 +34,14 @@
 #define WHEEL_PWM_FREQ_HZ 50
 #define SERVO_PWM_FREQ_HZ 50
 #define WHEEL_FADE_TIME 10000
+#define X_MIN_MICROSECS 1000
+#define X_MAX_MICROSECS 1350
+#define j2_MIN_MICROSECS 700
+#define j2_MAX_MICROSECS 2000
+#define j3_MIN_MICROSECS 700
+#define j3_MAX_MICROSECS 2300
+
+
 
 bool estop_get(void);
 
