@@ -120,10 +120,11 @@ void adc_init(void) {
 }
 
 void motor_control_init(void) {
+  ledc_fade_func_install(0);
 
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
-      .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
+      .duty_resolution = LEDC_RESOLUTION,
       .timer_num = LEDC_TIMER_0,
       .freq_hz = WHEEL_PWM_FREQ_HZ,
       .clk_cfg = LEDC_AUTO_CLK,
@@ -158,7 +159,7 @@ void motor_control_init(void) {
 void servo_control_init(void) {
   ledc_timer_config_t ledc_timer = {
       .speed_mode = LEDC_LOW_SPEED_MODE,
-      .duty_resolution = SOC_LEDC_TIMER_BIT_WIDTH,
+      .duty_resolution = LEDC_RESOLUTION,
       .timer_num = LEDC_TIMER_1,
       .freq_hz = SERVO_PWM_FREQ_HZ,
       .clk_cfg = LEDC_AUTO_CLK,
@@ -205,29 +206,26 @@ void servo_control_init(void) {
 // NOTE: RIGHT WHEELS CHANNEL SET / UPDATE DUTY MUST BE CALLED BEFORE LEFT WHEELS CHANNEL (idk why)
 void set_wheel_speed(int16_t left, int16_t right) {
   // convert to 1000 to 2000 micro seconds
-  uint16_t right_micro_seconds =
-      1000 +
-      (1000 * (((float)((int32_t)right - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
-  // convert to percentage of period
-  float percentage =
-      ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
-  // convert to [0, 2 ** duty_resolution]
-  uint32_t duty;
-  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL);
-
-  // convert to 1000 to 2000 micro seconds
   uint16_t left_micro_seconds =
       1000 + (1000 * (((float)((int32_t)left - INT16_MIN)) /
                       (INT16_MAX - INT16_MIN)));
   // convert to percentage of period
-  percentage =
+  float percentage =
       ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
-  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) * percentage;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL);
+  uint32_t duty = (1 << LEDC_RESOLUTION) * percentage;
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty, 0);
+
+  // convert to 1000 to 2000 micro seconds
+  uint16_t right_micro_seconds =
+      1000 +
+      (1000 * (((float)((int32_t)right - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
+  // convert to percentage of period
+  percentage =
+      ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+  // convert to [0, 2 ** duty_resolution]
+  duty = (1 << LEDC_RESOLUTION) * percentage;
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty, 0);
 }
 
 void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
@@ -240,21 +238,23 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) *
+  duty = (1 << LEDC_RESOLUTION) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, X_SERVO_CHANNEL);
-
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, X_SERVO_CHANNEL, duty, 0);
+  
   // Servo j2
   micro_seconds =
       j2_MIN_MICROSECS + j2 * (j2_MAX_MICROSECS - j2_MIN_MICROSECS) / (UINT16_MAX); // convert to microseconds(700-2300)
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) *
+  duty = (1 << LEDC_RESOLUTION) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, J2_SERVO_CHANNEL);
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J2_SERVO_CHANNEL, duty, 0);
+  ESP_LOGI("hardware.c", "J2:%d", j2);
+  ESP_LOGI("hardware.c", "micro:%d", micro_seconds);
+  ESP_LOGI("hardware.c", "percent:%f", percentage);
+  ESP_LOGI("hardware.c", "duty:%d", duty);
 
   // Servo j3
   micro_seconds =
@@ -262,10 +262,9 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << SOC_LEDC_TIMER_BIT_WIDTH) *
+  duty = (1 << LEDC_RESOLUTION) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHANNEL, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, J3_SERVO_CHANNEL);
+  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J3_SERVO_CHANNEL, duty, 0);
 }
 
 void cell_sense_get(float *cell1, float *cell2, float *cell3) {

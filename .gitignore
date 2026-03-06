@@ -1,6 +1,4 @@
 /.pio
-/sdkconfig.*
-!/sdkconfig.defaults
 /CMakeCache.txt
 /data/images.bin
 /data/images.js

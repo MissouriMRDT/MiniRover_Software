@@ -294,8 +294,9 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
          handle_priority(fd, &webState.arm_priority_fd,
                          &webState.arm_priority_until, now))) {
       webState.x = rxData.arm_angles.x;
-      webState.j2 = rxData.arm_angles.j3;
+      webState.j2 = rxData.arm_angles.j2;
       webState.j3 = rxData.arm_angles.j3;
+      ESP_LOGI("web.c", "X:%d, J2:%d, J3:%d", webState.x, webState.j2, webState.j3);
     }
     break;
   case 4:

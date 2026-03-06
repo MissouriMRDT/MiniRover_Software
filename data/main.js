@@ -419,7 +419,7 @@ window.onload = () => {
 
     setInterval(() => {
         let now = performance.now();
-        let deltaT = (now - lastTime) * 1000;
+        let deltaT = (now - lastTime) / 1000;
         lastTime = now;
 
         let driveSpeed = dom.speed.valueAsNumber;
@@ -448,8 +448,8 @@ window.onload = () => {
         if (socket.readyState === WebSocket.OPEN && armActiveUntil > now) {
             if (ik) {
                 targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 500);
-                targetAngles.j2 = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
-                targetAngles.j3 = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
+                targetAngles.y = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
+                targetAngles.z = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
 
                 data.setUint8(0, 4, true);
                 data.setUint8(1, override, true);
@@ -460,12 +460,13 @@ window.onload = () => {
                 targetAngles.x = clamp(targetAngles.x + armLeft.x * JOINT_SPEED * deltaT, 0, 1);
                 targetAngles.j2 = clamp(targetAngles.j2 + armRight.x * JOINT_SPEED * deltaT, 0, 1);
                 targetAngles.j3 = clamp(targetAngles.j3 + armRight.y * JOINT_SPEED * deltaT, 0, 1);
-
+                
                 data.setUint8(0, 3, true);
                 data.setUint8(1, override, true);
                 data.setUint16(2, targetAngles.x * 0x10000, true);
                 data.setUint16(4, targetAngles.j2 * 0x10000, true);
                 data.setUint16(6, targetAngles.j3 * 0x10000, true);
+                console.log(targetAngles, buffer, deltaT);
             }
             socket.send(buffer);
         }
