@@ -1,6 +1,6 @@
 const JOYSTICK_CLIP_RANGE = 0.2;
 const GAMMA = 1.5;
-const JOINT_SPEED = 0.02; // range/s
+const JOINT_SPEED = 0.2; // range/s
 const IK_SPEED = 4; // mm/s
 const ACTIVE_TIMEOUT = 1; // s to send drive and/or arm commands after their joysticks are released, must be at least 2 * COMMAND_INTERVAL
 const COMMAND_INTERVAL = 0.1; // s
