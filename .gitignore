@@ -1,4 +1,5 @@
 /.pio
+/sdkconfig.esp32_s2_devkitm_1.old
 /CMakeCache.txt
 /data/images.bin
 /data/images.js
