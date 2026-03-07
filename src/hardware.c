@@ -50,27 +50,27 @@ void pins_init() {
 
 void buzzer_set(bool on) {
   // Set time variable
-  int64_t now = esp_timer_get_time();
+  // int64_t now = esp_timer_get_time();
   // check if buzzer on
   // if buzzer on: turn on
   // check time using module operator to set buzz pattern
-  if (on) {
-    if (now % 3000000 < 250000) {
-      gpio_set_level(PIN_BUZZER, 1);
-    } else if (now % 3000000 < 500000) {
-      gpio_set_level(PIN_BUZZER, 0);
-    } else if (now % 3000000 < 750000) {
-      gpio_set_level(PIN_BUZZER, 1);
-    } else if (now % 3000000 < 1000000) {
-      gpio_set_level(PIN_BUZZER, 0);
-    } else if (now % 3000000 < 1250000) {
-      gpio_set_level(PIN_BUZZER, 1);
-    } else if (now % 3000000 < 3000000) {
-      gpio_set_level(PIN_BUZZER, 0);
-    }
-    // TODO: turn on and off buzer
-    // TODO: differnt buzzing patterns for low voltage vs low current
-  } else gpio_set_level(PIN_BUZZER, 0);
+  // if (on) {
+  //   if (now % 3000000 < 250000) {
+  //     gpio_set_level(PIN_BUZZER, 1);
+  //   } else if (now % 3000000 < 500000) {
+  //     gpio_set_level(PIN_BUZZER, 0);
+  //   } else if (now % 3000000 < 750000) {
+  //     gpio_set_level(PIN_BUZZER, 1);
+  //   } else if (now % 3000000 < 1000000) {
+  //     gpio_set_level(PIN_BUZZER, 0);
+  //   } else if (now % 3000000 < 1250000) {
+  //     gpio_set_level(PIN_BUZZER, 1);
+  //   } else if (now % 3000000 < 3000000) {
+  //     gpio_set_level(PIN_BUZZER, 0);
+  //   }
+  //   // TODO: turn on and off buzer
+  //   // TODO: differnt buzzing patterns for low voltage vs low current
+  // } else gpio_set_level(PIN_BUZZER, 0);
 }
 
 void adc_init(void) {
@@ -203,8 +203,13 @@ void servo_control_init(void) {
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_4));
 }
 
+#define WHEEL_SPEED 0.5
+
 // NOTE: RIGHT WHEELS CHANNEL SET / UPDATE DUTY MUST BE CALLED BEFORE LEFT WHEELS CHANNEL (idk why)
 void set_wheel_speed(int16_t left, int16_t right) {
+  left *= WHEEL_SPEED;
+  right *= WHEEL_SPEED;
+
   // convert to 1000 to 2000 micro seconds
   uint16_t left_micro_seconds =
       1000 + (1000 * (((float)((int32_t)left - INT16_MIN)) /
@@ -213,8 +218,8 @@ void set_wheel_speed(int16_t left, int16_t right) {
   float percentage =
       ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
-  uint32_t duty = (1 << LEDC_RESOLUTION) * percentage;
-  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty, 0);
+  uint32_t duty = ((1 << LEDC_RESOLUTION) - 1) * percentage;
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty, 0));
 
   // convert to 1000 to 2000 micro seconds
   uint16_t right_micro_seconds =
@@ -224,8 +229,8 @@ void set_wheel_speed(int16_t left, int16_t right) {
   percentage =
       ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
   // convert to [0, 2 ** duty_resolution]
-  duty = (1 << LEDC_RESOLUTION) * percentage;
-  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty, 0);
+  duty = ((1 << LEDC_RESOLUTION) - 1) * percentage;
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty, 0));
 }
 
 void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
@@ -238,9 +243,9 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << LEDC_RESOLUTION) *
+  duty = ((1 << LEDC_RESOLUTION) - 1) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, X_SERVO_CHANNEL, duty, 0);
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, X_SERVO_CHANNEL, duty, 0));
   
   // Servo j2
   micro_seconds =
@@ -248,13 +253,9 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << LEDC_RESOLUTION) *
+  duty = ((1 << LEDC_RESOLUTION) - 1) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J2_SERVO_CHANNEL, duty, 0);
-  ESP_LOGI("hardware.c", "J2:%d", j2);
-  ESP_LOGI("hardware.c", "micro:%d", micro_seconds);
-  ESP_LOGI("hardware.c", "percent:%f", percentage);
-  ESP_LOGI("hardware.c", "duty:%d", duty);
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J2_SERVO_CHANNEL, duty, 0));
 
   // Servo j3
   micro_seconds =
@@ -262,9 +263,9 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
   percentage =
       ((float)micro_seconds) /
       (1000 * 1000 / (SERVO_PWM_FREQ_HZ)); // convert to percentage of frequency
-  duty = (1 << LEDC_RESOLUTION) *
+  duty = ((1 << LEDC_RESOLUTION) - 1) *
          percentage; // convert to [0, 2**duty_resolution]
-  ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J3_SERVO_CHANNEL, duty, 0);
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, J3_SERVO_CHANNEL, duty, 0));
 }
 
 void cell_sense_get(float *cell1, float *cell2, float *cell3) {

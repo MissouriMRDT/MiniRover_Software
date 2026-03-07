@@ -428,6 +428,7 @@ window.onload = () => {
         // Scale exponentially.
         driveX = driveX < 0 ? -Math.pow(-driveX, GAMMA) : Math.pow(driveX, GAMMA);
         driveY = driveY < 0 ? -Math.pow(-driveY, GAMMA) : Math.pow(driveY, GAMMA);
+        driveY = -driveY; // y on joystick increases downwards
         let [leftSpeed, rightSpeed] = arcadeDrive(driveX, driveY);
         leftSpeed = lerpClamp(leftSpeed, -1, 1, -driveSpeed, driveSpeed);
         rightSpeed = lerpClamp(rightSpeed, -1, 1, -driveSpeed, driveSpeed);
@@ -463,9 +464,9 @@ window.onload = () => {
                 
                 data.setUint8(0, 3, true);
                 data.setUint8(1, override, true);
-                data.setUint16(2, targetAngles.x * 0x10000, true);
-                data.setUint16(4, targetAngles.j2 * 0x10000, true);
-                data.setUint16(6, targetAngles.j3 * 0x10000, true);
+                data.setUint16(2, targetAngles.x * 0xFFFF, true);
+                data.setUint16(4, targetAngles.j2 * 0xFFFF, true);
+                data.setUint16(6, targetAngles.j3 * 0xFFFF, true);
                 console.log(targetAngles, buffer, deltaT);
             }
             socket.send(buffer);

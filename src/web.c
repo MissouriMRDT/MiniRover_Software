@@ -43,6 +43,8 @@ static web_state webState = {
     .drive_speed = UINT16_MAX,
 };
 
+typedef struct {httpd_handle_t server; int number;} argHolder;
+
 DMA_ATTR uint16_t pixels[PIXELS_LENGTH];
 static esp_err_t display_handler(httpd_req_t *req) {
   ESP_LOGI(TAG_WEB, "/upload %i", req->content_len);
@@ -329,7 +331,9 @@ static const httpd_uri_t websocketConfig = {
 };
 
 static telemetry txData = {0};
-void send_telemetry(httpd_handle_t server) {
+void send_telemetry(void* args) {
+  int64_t start = esp_timer_get_time();
+  httpd_handle_t server = ((argHolder*)args)->server;
   httpd_ws_frame_t pkt = {
       .final = false,
       .fragmented = false,
@@ -350,6 +354,9 @@ void send_telemetry(httpd_handle_t server) {
       }
     }
   }
+  int64_t end = esp_timer_get_time();
+  ESP_LOGI("web.c", "send_telemetry() %d took %d", ((argHolder*)args)->number, end - start);
+  free(args);
 }
 
 void webserver() {
@@ -357,6 +364,7 @@ void webserver() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.backlog_conn = 10;
   config.uri_match_fn = httpd_uri_match_wildcard;
+  int64_t global_start = esp_timer_get_time();
 
   ESP_LOGI(TAG_WEB, "Starting webserver on port %d.", config.server_port);
   if (httpd_start(&server, &config) == ESP_OK) {
@@ -367,7 +375,9 @@ void webserver() {
 
     // Send telemetry every 100ms.
     while (server != NULL) {
-      ESP_LOGI("web.c", "WEB_LOOP!!");
+      static int32_t loop_num = 0;
+      int64_t start = esp_timer_get_time();
+      ESP_LOGI("web.c", "WEB_LOOP at time %d", start - global_start);
       int64_t now = esp_timer_get_time();
       // Send file descriptor(s) with priority and override unless they are
       // expired.
@@ -414,7 +424,13 @@ void webserver() {
         gpio_set_level(PIN_ESC_ENABLE, 1);
       }
 
-      httpd_queue_work(server, send_telemetry, server);
+      argHolder *holder = malloc(sizeof(argHolder));
+      holder->server = server;
+      holder->number = loop_num;
+      httpd_queue_work(server, send_telemetry, holder);
+      int64_t end = esp_timer_get_time();
+      ESP_LOGI("web.c", "webServer() loop %d took %d", loop_num, end - start);
+      loop_num++;
       vTaskDelay(100);
     }
     ESP_LOGE(TAG_WEB, "Main loop exited!");
