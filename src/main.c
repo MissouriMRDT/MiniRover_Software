@@ -22,9 +22,9 @@ void app_main(void) {
   ESP_ERROR_CHECK(ret);
 
   ESP_LOGI(TAG_MAIN, "ESP_WIFI_MODE_AP");
+  pins_init();
   motor_control_init();
   set_wheel_speed(0, 0);
-  pins_init();
   servo_control_init();
 
   wifi_init_softap();
