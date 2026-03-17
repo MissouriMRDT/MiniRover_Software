@@ -298,7 +298,6 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
       webState.x = rxData.arm_angles.x;
       webState.j2 = rxData.arm_angles.j2;
       webState.j3 = rxData.arm_angles.j3;
-      ESP_LOGI("web.c", "X:%d, J2:%d, J3:%d", webState.x, webState.j2, webState.j3);
     }
     break;
   case 4:
@@ -355,7 +354,6 @@ void send_telemetry(void* args) {
     }
   }
   int64_t end = esp_timer_get_time();
-  ESP_LOGI("web.c", "send_telemetry() %d took %d", ((argHolder*)args)->number, end - start);
   free(args);
 }
 
@@ -377,52 +375,6 @@ void webserver() {
     while (server != NULL) {
       static int32_t loop_num = 0;
       int64_t start = esp_timer_get_time();
-      ESP_LOGI("web.c", "WEB_LOOP at time %d", start - global_start);
-      int64_t now = esp_timer_get_time();
-      // Send file descriptor(s) with priority and override unless they are
-      // expired.
-      txData.drive_priority_fd = now <= webState.drive_priority_until
-                                      ? webState.drive_priority_fd
-                                      : -1;
-      txData.arm_priority_fd =
-          now <= webState.arm_priority_until ? webState.arm_priority_fd :
-          -1;
-      txData.override_fd =
-          now <= webState.overriden_until ? webState.override_fd : -1;
-
-      // Needed because txData is packed and pointers may be unaligned.
-      float cell1, cell2, cell3;
-      cell_sense_get(&cell1, &cell2, &cell3);
-      txData.cell1 = cell1;
-      txData.cell2 = cell2;
-      txData.cell3 = cell3;
-
-      txData.l = webState.left;
-      txData.r = webState.right;
-      txData.ax = webState.x;
-      txData.j2 = webState.j2;
-      txData.j3 = webState.j3;
-
-      // Needed because txData is packed and pointers may be unaligned.
-      int16_t x, y, z;
-      fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y,
-      &z); txData.x = x; txData.y = y; txData.z = z;
-
-      txData.drive_speed = webState.drive_speed;
-      
-      bool estop = estop_get();
-      bool pms_stop = false; // TODO: set based on cell_sense_get
-      if (estop || pms_stop) {
-        ESP_LOGI("web.c", "ESTOP!!");
-        set_wheel_speed(0, 0);
-        buzzer_set(true);
-        gpio_set_level(PIN_ESC_ENABLE, 0);
-      } else {
-        set_wheel_speed(webState.left, webState.right);
-        set_servo_positions(webState.x, webState.j2, webState.j3);
-        buzzer_set(false);
-        gpio_set_level(PIN_ESC_ENABLE, 1);
-      }
 
       argHolder *holder = malloc(sizeof(argHolder));
       holder->server = server;
@@ -440,5 +392,59 @@ void webserver() {
 
   while (1) {
     ESP_LOGE(TAG_WEB, "Main loop exited!");
+  }
+}
+
+void control()
+{
+  while (1) { 
+    int64_t now = esp_timer_get_time();
+    // Send file descriptor(s) with priority and override unless they are
+    // expired.
+    txData.drive_priority_fd = now <= webState.drive_priority_until
+                                    ? webState.drive_priority_fd
+                                    : -1;
+    txData.arm_priority_fd =
+        now <= webState.arm_priority_until ? webState.arm_priority_fd :
+        -1;
+    txData.override_fd =
+        now <= webState.overriden_until ? webState.override_fd : -1;
+
+    txData.l = webState.left;
+    txData.r = webState.right;
+    txData.ax = webState.x;
+    txData.j2 = webState.j2;
+    txData.j3 = webState.j3;
+
+    // Needed because txData is packed and pointers may be unaligned.
+    float cell1, cell2, cell3;
+    cell_sense_get(&cell1, &cell2, &cell3);
+    txData.cell1 = cell1;
+    txData.cell2 = cell2;
+    txData.cell3 = cell3;
+
+    // Needed because txData is packed and pointers may be unaligned.
+    int16_t x, y, z;
+    fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y,
+    &z); txData.x = x; txData.y = y; txData.z = z;
+
+    txData.drive_speed = webState.drive_speed;
+    
+    bool estop = estop_get();
+    bool pms_stop = false; // TODO: set based on cell_sense_get
+    if (estop || pms_stop) {
+        set_wheel_speed(0, 0);
+        buzzer_set(true);
+        gpio_set_level(PIN_ESC_ENABLE, 0);
+    } else {
+        set_wheel_speed(webState.left, webState.right);
+        set_servo_positions(webState.x, webState.j2, webState.j3);
+        buzzer_set(false);
+        gpio_set_level(PIN_ESC_ENABLE, 1);
+    }
+
+    int64_t end = esp_timer_get_time();
+    ESP_LOGI("web.c", "control() took %d", end - now);
+    vTaskDelay(100);
   }
 }

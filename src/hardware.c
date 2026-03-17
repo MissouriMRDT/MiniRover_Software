@@ -203,7 +203,7 @@ void servo_control_init(void) {
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_4));
 }
 
-#define WHEEL_SPEED 0.3
+#define WHEEL_SPEED 0.5
 
 void set_wheel_speed(int16_t left, int16_t right) {
   left *= WHEEL_SPEED;

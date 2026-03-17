@@ -20,6 +20,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
              "station disconnected mac: " MACSTR ", aid: %d, reason: %d",
              MAC2STR(event->mac), event->aid, event->reason);
   }
+  vTaskDelay(1);
 }
 
 void wifi_init_softap(void) {

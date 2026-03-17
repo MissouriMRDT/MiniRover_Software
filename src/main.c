@@ -28,10 +28,13 @@ void app_main(void) {
   servo_control_init();
 
   wifi_init_softap();
-  vTaskDelay(1000);
+  vTaskDelay(10000);
   tft_init();
   tft_draw_image(1, pixels);
   tft_draw_image(0, pixels);
   // Will not return.
-  webserver();
+
+  xTaskCreate(webserver, "webserver", 8192, NULL, 0, NULL);
+  xTaskCreate(control, "control", 4096, NULL, 1, NULL);
+
 }

@@ -30,4 +30,5 @@ extern const char FILE_CSS_END[] asm("_binary_style_css_end");
 extern uint16_t pixels[PIXELS_LENGTH];
 
 void webserver();
+void control();
 #endif
