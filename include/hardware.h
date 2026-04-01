@@ -3,6 +3,8 @@
 
 #include "driver/ledc.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -41,7 +43,13 @@
 #define j2_MAX_MICROSECS 2000
 #define j3_MIN_MICROSECS 700
 #define j3_MAX_MICROSECS 2300
+#define CELL1_VOLTAGE_MAX 4.6
+#define CELL2_VOLTAGE_MAX 4.5
+#define CELL3_VOLTAGE_MAX 4.5
+#define CELL_VOLTAGE_MIN 3500
 
+static adc_oneshot_unit_handle_t cell_sense_handle;
+static adc_cali_handle_t adc1_cali_chan0_handle = NULL;
 
 
 bool estop_get(void);

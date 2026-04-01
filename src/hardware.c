@@ -8,6 +8,9 @@
 #include <esp_log.h>
 #include <string.h>
 
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
+
 bool estop_get(void) {
   if (gpio_get_level(PIN_ESTOP) == 0) {
     return false;
@@ -74,16 +77,16 @@ void buzzer_set(bool on) {
 }
 
 void adc_init(void) {
-  /* adc_oneshot_unit_handle_t cell_sense_handle;
+    // 1 -- Initialize the ADC
    adc_oneshot_unit_init_cfg_t init_config = {
        .unit_id = ADC_UNIT_1,
-       .ulp_mode = ADC_ULP_MODE_DISABLE,
    };
 
    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &cell_sense_handle));
 
+    // 2 -- Configure the ADC
    adc_oneshot_chan_cfg_t config = {
-       .bitwidth = ADC_BITWIDTH_DEFAULT,
+       .bitwidth = ADC_BITWIDTH_13,
        .atten = ADC_ATTEN_DB_12,
    };
 
@@ -94,29 +97,14 @@ void adc_init(void) {
    ESP_ERROR_CHECK(adc_oneshot_config_channel(cell_sense_handle,
                                               CELL_SENSE_3_CHANNEL, &config));
 
-   // Find the raw value to then convert later int raw_value_1;
-   int raw_value_1;
-   int raw_value_2;
-   int raw_value_3;
+    // 3 -- Calibrate the ADC
+    adc_cali_line_fitting_config_t cali_config = {
+        .unit_id = ADC_UNIT_1,
+        .atten = ADC_ATTEN_DB_12,
+        .bitwidth = ADC_BITWIDTH_13,
+    };
+    adc_cali_create_scheme_line_fitting(&cali_config, &adc1_cali_chan0_handle);
 
-   float Vmax = 1.1;                         // Max Voltage
-   int16_t Dmax = 1 << ADC_BITWIDTH_DEFAULT; // 2^BitWidth: ADC_BITWIDTH_DEFAULT
-                                             // sets to max bitwidth
-
-   adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHANNEL, &raw_value_1);
-
-   adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHANNEL, &raw_value_2);
-
-   adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHANNEL, &raw_value_3);
-
-   float Cell1 = raw_value_1 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
-   printf("Cell1: %f\n", Cell1);
-
-   float Cell2 = raw_value_2 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
-   printf("Cell2: %f\n", Cell2);
-
-   float Cell3 = raw_value_3 * Vmax / Dmax; // Vo=raw*Vm/Dm  (Dm is 2^BitWidth)
-   printf("Cell3: %f\n", Cell3);*/
 }
 
 void motor_control_init(void) {
@@ -268,5 +256,28 @@ void set_servo_positions(uint16_t x, uint16_t j2, uint16_t j3) {
 }
 
 void cell_sense_get(float *cell1, float *cell2, float *cell3) {
-  // TODO: Read, calculate, and return ESC and cell sense values.
-}
+   int raw_value_1;
+   int raw_value_2;
+   int raw_value_3;
+
+   int output_voltage_1;
+   int output_voltage_2;
+   int output_voltage_3;
+
+   float Vmax = 1.1;
+   int16_t Dmax = 1 << ADC_BITWIDTH_13;
+
+   adc_oneshot_read(cell_sense_handle, CELL_SENSE_1_CHANNEL, &raw_value_1);
+   adc_oneshot_read(cell_sense_handle, CELL_SENSE_2_CHANNEL, &raw_value_2);
+   adc_oneshot_read(cell_sense_handle, CELL_SENSE_3_CHANNEL, &raw_value_3);
+
+    adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_1, &output_voltage_1);
+    adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_2, &output_voltage_2);
+    adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_3, &output_voltage_3);
+
+    vTaskDelay(1000/portTICK_PERIOD_MS);
+
+   *cell1 = CELL1_VOLTAGE_MAX * output_voltage_1 / Vmax;
+   *cell2 = CELL2_VOLTAGE_MAX * output_voltage_2 / Vmax;
+   *cell3 = CELL3_VOLTAGE_MAX * output_voltage_3 / Vmax;
+  }

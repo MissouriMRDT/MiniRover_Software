@@ -26,7 +26,7 @@ void app_main(void) {
   motor_control_init();
   set_wheel_speed(0, 0);
   servo_control_init();
-
+  adc_init();
   wifi_init_softap();
   vTaskDelay(10000);
   tft_init();

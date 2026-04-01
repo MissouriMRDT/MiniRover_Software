@@ -431,7 +431,13 @@ void control()
     txData.drive_speed = webState.drive_speed;
     
     bool estop = estop_get();
-    bool pms_stop = false; // TODO: set based on cell_sense_get
+    bool pms_stop;
+    if (cell1 < CELL_VOLTAGE_MIN || cell2 < CELL_VOLTAGE_MIN || cell3 < CELL_VOLTAGE_MIN) {
+      pms_stop = true;
+    }
+    else {
+      pms_stop = false;
+    }
     if (estop || pms_stop) {
         set_wheel_speed(0, 0);
         buzzer_set(true);
