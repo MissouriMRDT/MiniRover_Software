@@ -451,6 +451,6 @@ void control()
 
     int64_t end = esp_timer_get_time();
     ESP_LOGI("web.c", "control() took %d", end - now);
-    vTaskDelay(100);
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }

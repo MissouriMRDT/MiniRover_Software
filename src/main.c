@@ -35,6 +35,6 @@ void app_main(void) {
   // Will not return.
 
   xTaskCreate(webserver, "webserver", 8192, NULL, 0, NULL);
-  xTaskCreate(control, "control", 4096, NULL, 1, NULL);
+  xTaskCreate(control, "control", 4096, NULL, 0, NULL);
 
 }

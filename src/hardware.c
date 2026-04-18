@@ -203,10 +203,13 @@ void set_wheel_speed(int16_t left, int16_t right) {
                       (INT16_MAX - INT16_MIN)));
   // convert to percentage of period
   float percentage =
-      ((float)left_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+      ((float)left_micro_seconds) / (1000000.0f / (WHEEL_PWM_FREQ_HZ));
+
+  if (percentage > 1.0f) percentage = 1.0f;
+  if (percentage < 0.0f) percentage = 0.0f;
   // convert to [0, 2 ** duty_resolution]
   uint32_t duty = ((1 << LEDC_RESOLUTION) - 1) * percentage;
-  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty, 0));
+  ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, LEFT_WHEELS_CHANNEL, duty, 0)); //SUS
 
   // convert to 1000 to 2000 micro seconds
   uint16_t right_micro_seconds =
@@ -214,7 +217,10 @@ void set_wheel_speed(int16_t left, int16_t right) {
       (1000 * (((float)((int32_t)right - INT16_MIN)) / (INT16_MAX - INT16_MIN)));
   // convert to percentage of period
   percentage =
-      ((float)right_micro_seconds) / (1000 * 1000 / (WHEEL_PWM_FREQ_HZ));
+      ((float)right_micro_seconds) / (1000000.0f / (WHEEL_PWM_FREQ_HZ));
+
+  if (percentage > 1.0f) percentage = 1.0f;
+  if (percentage < 0.0f) percentage = 0.0f;
   // convert to [0, 2 ** duty_resolution]
   duty = ((1 << LEDC_RESOLUTION) - 1) * percentage;
   ESP_ERROR_CHECK(ledc_set_duty_and_update(LEDC_LOW_SPEED_MODE, RIGHT_WHEELS_CHANNEL, duty, 0));
@@ -274,8 +280,6 @@ void cell_sense_get(float *cell1, float *cell2, float *cell3) {
     adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_1, &output_voltage_1);
     adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_2, &output_voltage_2);
     adc_cali_raw_to_voltage(adc1_cali_chan0_handle, raw_value_3, &output_voltage_3);
-
-    vTaskDelay(1000/portTICK_PERIOD_MS);
 
    *cell1 = CELL1_VOLTAGE_MAX * output_voltage_1 / Vmax;
    *cell2 = CELL2_VOLTAGE_MAX * output_voltage_2 / Vmax;
