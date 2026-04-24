@@ -306,8 +306,8 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
         (rxData.override ||
          handle_priority(fd, &webState.arm_priority_fd,
                          &webState.arm_priority_until, now))) {
-      ik_calculate_angles(rxData.arm_ik.x, rxData.arm_ik.y, rxData.arm_ik.z,
-                          &webState.x, &webState.j2, &webState.j3);
+      ik_calculate_angles(rxData.arm_ik.x, rxData.arm_ik.y,
+                          &webState.j2, &webState.j3);
     }
     break;
   case 5:
@@ -425,8 +425,8 @@ void control()
 
     // Needed because txData is packed and pointers may be unaligned.
     int16_t x, y, z;
-    fk_calculate_position(webState.x, webState.j2, webState.j3, &x, &y,
-    &z); txData.x = x; txData.y = y; txData.z = z;
+    fk_calculate_position(webState.j2, webState.j3, &x, &y
+    ); txData.x = x; txData.y = y;
 
     txData.drive_speed = webState.drive_speed;
     
@@ -438,6 +438,7 @@ void control()
     else {
       pms_stop = false;
     }
+    pms_stop = false;
     if (estop || pms_stop) {
         set_wheel_speed(0, 0);
         buzzer_set(true);
