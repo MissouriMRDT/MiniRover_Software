@@ -53,27 +53,27 @@ void pins_init() {
 
 void buzzer_set(bool on) {
 //   // Set time variable
-//   int64_t now = esp_timer_get_time();
-//   // check if buzzer on
-//   // if buzzer on: turn on
-//   // check time using module operator to set buzz pattern
-//   if (on) {
-//     if (now % 3000000 < 250000) {
-//       gpio_set_level(PIN_BUZZER, 1);
-//     } else if (now % 3000000 < 500000) {
-//       gpio_set_level(PIN_BUZZER, 0);
-//     } else if (now % 3000000 < 750000) {
-//       gpio_set_level(PIN_BUZZER, 1);
-//     } else if (now % 3000000 < 1000000) {
-//       gpio_set_level(PIN_BUZZER, 0);
-//     } else if (now % 3000000 < 1250000) {
-//       gpio_set_level(PIN_BUZZER, 1);
-//     } else if (now % 3000000 < 3000000) {
-//       gpio_set_level(PIN_BUZZER, 0);
-//     }
-//     // TODO: turn on and off buzer
-//     // TODO: differnt buzzing patterns for low voltage vs low current
-//   } else gpio_set_level(PIN_BUZZER, 0);
+  int64_t now = esp_timer_get_time();
+  // check if buzzer on
+  // if buzzer on: turn on
+  // check time using module operator to set buzz pattern
+  if (on) {
+    if (now % 3000000 < 250000) {
+      gpio_set_level(PIN_BUZZER, 1);
+    } else if (now % 3000000 < 500000) {
+      gpio_set_level(PIN_BUZZER, 0);
+    } else if (now % 3000000 < 750000) {
+      gpio_set_level(PIN_BUZZER, 1);
+    } else if (now % 3000000 < 1000000) {
+      gpio_set_level(PIN_BUZZER, 0);
+    } else if (now % 3000000 < 1250000) {
+      gpio_set_level(PIN_BUZZER, 1);
+    } else if (now % 3000000 < 3000000) {
+      gpio_set_level(PIN_BUZZER, 0);
+    }
+    // TODO: turn on and off buzer
+    // TODO: differnt buzzing patterns for low voltage vs low current
+  } else gpio_set_level(PIN_BUZZER, 0);
 }
 
 void adc_init(void) {
@@ -191,7 +191,7 @@ void servo_control_init(void) {
   ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel_4));
 }
 
-#define WHEEL_SPEED 0.5
+#define WHEEL_SPEED 1
 
 void set_wheel_speed(int16_t left, int16_t right) {
   left *= WHEEL_SPEED;

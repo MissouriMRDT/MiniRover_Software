@@ -11,6 +11,9 @@
 #include <socket.h>
 #include <string.h>
 
+int16_t txData_PlaceHolder_y = -1;
+int16_t txData_PlaceHolder_z = -1;
+
 typedef struct web_state {
   bool off;
   int16_t left;
@@ -200,9 +203,9 @@ typedef struct __attribute__((__packed__)) command {
       uint16_t j3; // 6
     } arm_angles;
     struct __attribute__((__packed__)) {
-      uint16_t x; // 2
-      uint16_t y; // 4
-      uint16_t z; // 6
+      int16_t x; // 2
+      int16_t y; // 4
+      int16_t z; // 6
     } arm_ik;
     struct __attribute__((__packed__)) {
       uint8_t idx; // 2
@@ -298,6 +301,7 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
       webState.x = rxData.arm_angles.x;
       webState.j2 = rxData.arm_angles.j2;
       webState.j3 = rxData.arm_angles.j3;
+      txData_PlaceHolder_y = -1;
     }
     break;
   case 4:
@@ -306,8 +310,10 @@ static esp_err_t websocket_handler(httpd_req_t *req) {
         (rxData.override ||
          handle_priority(fd, &webState.arm_priority_fd,
                          &webState.arm_priority_until, now))) {
-      ik_calculate_angles(rxData.arm_ik.x, rxData.arm_ik.y,
+      ik_calculate_angles(rxData.arm_ik.y, rxData.arm_ik.z,
                           &webState.j2, &webState.j3);
+      txData_PlaceHolder_y = rxData.arm_ik.y;
+      txData_PlaceHolder_z = rxData.arm_ik.z;
     }
     break;
   case 5:
@@ -423,11 +429,18 @@ void control()
     txData.cell2 = cell2;
     txData.cell3 = cell3;
 
-    // Needed because txData is packed and pointers may be unaligned.
-    int16_t x, y, z;
-    fk_calculate_position(webState.j2, webState.j3, &x, &y
-    ); txData.x = x; txData.y = y;
-
+    if (txData_PlaceHolder_y != -1) {
+      txData.y = txData_PlaceHolder_y;
+      txData.z = txData_PlaceHolder_z;
+    }
+    else
+    {
+      // Needed because txData is packed and pointers may be unaligned.
+      int16_t x, y, z;
+      fk_calculate_position(webState.j2, webState.j3, &y, &z
+      ); txData.y = y; txData.z = z;
+    }
+    
     txData.drive_speed = webState.drive_speed;
     
     bool estop = estop_get();
@@ -438,7 +451,6 @@ void control()
     else {
       pms_stop = false;
     }
-    pms_stop = false;
     if (estop || pms_stop) {
         set_wheel_speed(0, 0);
         buzzer_set(true);

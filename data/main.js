@@ -1,7 +1,7 @@
 const JOYSTICK_CLIP_RANGE = 0.2;
 const GAMMA = 1.5;
 const JOINT_SPEED = 0.2; // range/s
-const IK_SPEED = 4; // mm/s
+const IK_SPEED = 100; // mm/s
 const ACTIVE_TIMEOUT = 1; // s to send drive and/or arm commands after their joysticks are released, must be at least 2 * COMMAND_INTERVAL
 const COMMAND_INTERVAL = 0.1; // s
 const LCD_WIDTH = 320;
@@ -408,8 +408,8 @@ window.onload = () => {
         // Set the non-controlled target values from telemetry.
         if (ik) {
             targetAngles.x = ax;
-            targetAngles.j2 = j2;
-            targetAngles.j3 = j3;
+            targetAngles.j2 = aj2;
+            targetAngles.j3 = aj3;
         } else {
             targetIK.x = aex;
             targetIK.y = aey;
@@ -448,9 +448,9 @@ window.onload = () => {
         if (armLeft.active || armRight.active) armActiveUntil = now + ACTIVE_TIMEOUT * 1000;
         if (socket.readyState === WebSocket.OPEN && armActiveUntil > now) {
             if (ik) {
-                targetAngles.x = clamp(targetAngles.x + armRight.x * IK_SPEED * deltaT, 0, 500);
-                targetAngles.y = clamp(targetAngles.j2 + armLeft.x * IK_SPEED * deltaT, 0, 500);
-                targetAngles.z = clamp(targetAngles.j3 + armLeft.y * IK_SPEED * deltaT, 0, 500);
+                targetIK.x = clamp(targetIK.x + armLeft.x * IK_SPEED * deltaT, -500, 500);
+                targetIK.y = clamp(targetIK.y + armRight.x * IK_SPEED * deltaT, -500, 500);
+                targetIK.z = clamp(targetIK.z + armRight.y * IK_SPEED * deltaT, -500, 500);
 
                 data.setUint8(0, 4, true);
                 data.setUint8(1, override, true);
